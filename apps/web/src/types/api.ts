@@ -45,8 +45,9 @@ export type ComplianceRunRead = Schemas['ComplianceRunRead'];
 export type ComplianceRunSummaryRead = Schemas['ComplianceRunSummaryRead'];
 export type ComplianceRunDetailRead = Schemas['ComplianceRunDetailRead'];
 
-// Evidence & Risk
-export type EvidenceRead = Schemas['EvidenceRead'];
+export type EvidenceRead = Omit<Schemas['EvidenceRead'], 'location_metadata'> & {
+  location_metadata?: Record<string, unknown> | null;
+};
 export type RiskSignalRead = Schemas['RiskSignalRead'];
 export type RiskSeverity = Schemas['RiskSeverity'];
 export type RiskSummaryRead = Schemas['RiskSummaryRead'];

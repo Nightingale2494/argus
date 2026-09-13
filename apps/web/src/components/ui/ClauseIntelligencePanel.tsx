@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Search, Sparkles, BookOpen, AlertCircle, FileText, Info } from "lucide-react";
 import { api } from "@/services/api";
+import { demoStore } from "@/services/demo-store";
 import type { RAGExplainResponse } from "@/services/types";
 
 interface ClauseIntelligencePanelProps {
@@ -12,8 +13,8 @@ interface ClauseIntelligencePanelProps {
 
 const QUICK_QUERIES = [
   "Is MSME turnover exemption applicable to this tender?",
-  "What are the EMD and bid security requirements?",
   "What are the minimum past experience thresholds?",
+  "What are the EMD and bid security requirements?",
   "Are joint ventures or consortia eligible to bid?",
 ];
 
@@ -32,38 +33,8 @@ export function ClauseIntelligencePanel({ tenderId, isDemo = false }: ClauseInte
     try {
       if (isDemo) {
         // Pure synthetic client-side response — zero backend network calls
-        await new Promise((r) => setTimeout(r, 400));
-        const syntheticRes: RAGExplainResponse = {
-          query: q,
-          explanation: q.toLowerCase().includes("msme")
-            ? "[SYNTHETIC POLICY CONTEXT • DEMO ONLY] Advisory Policy Intelligence: In simulated demo mode, policy fixtures indicate that Udyam-registered Micro & Small Enterprises may qualify for exemption from prior turnover requirements. In live authentic mode, exact clauses and precedents are retrieved directly from the uploaded tender RFP and verified gazette rules."
-            : `[SYNTHETIC POLICY CONTEXT • DEMO ONLY] Advisory Policy Intelligence: Retrieved simulated policy excerpts matching '${q}'. In live authentic mode, citations are retrieved strictly from parsed tender RFP text.`,
-          citations: [
-            {
-              id: "ev-rag-demo-1",
-              entity_type: "document_chunk",
-              entity_id: "tender-doc-rfp",
-              snippet: "Clause 4.2: Exemption from prior experience and turnover criteria shall be granted to Micro & Small Enterprises (MSEs) registered with Udyam, as per GFR 2017.",
-              page_number: 7,
-              source_uri: "storage://tenders/rfp_document.pdf",
-              location_metadata: null,
-              created_at: new Date().toISOString(),
-            },
-            {
-              id: "ev-rag-demo-2",
-              entity_type: "document_chunk",
-              entity_id: "policy-gfr-153",
-              snippet: "GFR Rule 153: In procurement of Goods and Services, where technical competency is established, procuring entities may relax condition of prior turnover and experience for MSEs.",
-              page_number: 1,
-              source_uri: "public://policy/gfr_rule_153.pdf",
-              location_metadata: null,
-              created_at: new Date().toISOString(),
-            },
-          ],
-          is_advisory: true,
-          advisory_disclaimer: "This explanation is purely advisory context generated from retrieved policy clauses. It does NOT decide qualification or override deterministic compliance rules.",
-          retrieved_at: new Date().toISOString(),
-        };
+        await new Promise((r) => setTimeout(r, 250));
+        const syntheticRes = await demoStore.queryRAG(tenderId, q);
         setResult(syntheticRes);
       } else {
         const resp = await api.explainRAG({
@@ -154,71 +125,185 @@ export function ClauseIntelligencePanel({ tenderId, isDemo = false }: ClauseInte
 
       {/* Search Results */}
       {result && (
-        <div className="space-y-4">
-          {/* Explanation Card */}
-          <div className="p-5 rounded-xl bg-zinc-900/60 border border-purple-800/30 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-purple-400" />
-                <h3 className="text-sm font-semibold text-zinc-200">Advisory Clause Synthesis</h3>
+        <div className="space-y-5">
+          {/* No Answer / Insufficient Evidence State */}
+          {result.result_class === "INSUFFICIENT_RETRIEVAL_EVIDENCE" && (
+            <div className="p-5 rounded-xl bg-amber-950/20 border border-amber-800/40 text-amber-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-300 font-semibold text-sm">
+                  <AlertCircle className="w-4 h-4 text-amber-400" />
+                  <span>Insufficient Retrieval Evidence</span>
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-900/60 text-amber-300 border border-amber-700/50">
+                  NO DIRECT CLAUSE FOUND
+                </span>
               </div>
-              <span className={`px-2.5 py-0.5 rounded text-[11px] font-mono font-semibold border ${
-                isDemo
-                  ? "bg-amber-950/80 text-amber-300 border-amber-800/60"
-                  : "bg-purple-950 text-purple-300 border border-purple-800/50"
-              }`}>
-                {isDemo ? "SYNTHETIC POLICY CONTEXT • DEMO ONLY" : "ADVISORY CONTEXT ONLY"}
-              </span>
+              <p className="text-sm text-amber-300/90 leading-relaxed">
+                {result.direct_answer || "ARGUS could not find an indexed clause that directly answers this question."}
+              </p>
+              <p className="text-xs text-amber-400/70 pt-1">
+                Recommendation: Verify if the requested requirement is specified in a non-indexed annexure, addendum, or general statutory procurement guidelines.
+              </p>
             </div>
-            <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">
-              {result.explanation}
-            </p>
-            <p className="text-[11px] text-zinc-500 italic pt-1 border-t border-zinc-800/60">
-              {result.advisory_disclaimer}
-            </p>
-          </div>
+          )}
 
-          {/* Citations List */}
+          {/* Direct Answer Card */}
+          {result.result_class !== "INSUFFICIENT_RETRIEVAL_EVIDENCE" && (
+            <div className="p-5 rounded-xl bg-zinc-900/70 border border-purple-800/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-purple-400" />
+                  <h3 className="text-sm font-semibold text-zinc-200">Direct Clause Answer</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-950 text-purple-300 border border-purple-800/60 font-semibold">
+                    DIRECT EVIDENCE
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded text-[11px] font-mono font-semibold border ${
+                    isDemo
+                      ? "bg-amber-950/80 text-amber-300 border-amber-800/60"
+                      : "bg-purple-950 text-purple-300 border border-purple-800/50"
+                  }`}>
+                    {isDemo ? "SYNTHETIC POLICY CONTEXT • DEMO ONLY" : "ADVISORY CONTEXT ONLY"}
+                  </span>
+                </div>
+              </div>
+              <p className="text-sm text-zinc-200 leading-relaxed font-normal">
+                {result.direct_answer || result.explanation}
+              </p>
+              <p className="text-[11px] text-zinc-500 italic pt-2 border-t border-zinc-800/60">
+                {result.advisory_disclaimer}
+              </p>
+            </div>
+          )}
+
+          {/* Related Context Card */}
+          {result.related_context && (
+            <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-zinc-300 font-medium text-xs">
+                  <Info className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Related Policy Context (Supplementary)</span>
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-zinc-800 text-zinc-400">
+                  SUPPLEMENTARY
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                {result.related_context}
+              </p>
+            </div>
+          )}
+
+          {/* Direct Citations List */}
           <div className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-              Cited Document Chunks ({result.citations.length})
-            </h4>
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Direct Cited Clauses ({result.citations.length})
+              </h4>
+              <span className="text-[11px] text-zinc-500">Sorted by relevance score</span>
+            </div>
+
             {result.citations.length === 0 ? (
               <div className="p-6 text-center text-sm text-zinc-500 bg-zinc-900/30 rounded-xl border border-zinc-800/40">
-                No matching excerpts indexed for this query.
+                No direct clause excerpts qualified above the relevance threshold for this query.
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {result.citations.map((cite, i) => (
-                  <div
-                    key={cite.id || i}
-                    className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/80 hover:border-zinc-700 transition-colors space-y-2 text-xs"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-zinc-300 font-medium">
-                        <FileText className="w-3.5 h-3.5 text-blue-400" />
-                        <span>Citation [{i + 1}]</span>
-                        {cite.page_number && (
-                          <span className="text-zinc-500">• Page {cite.page_number}</span>
+                {result.citations.map((cite, i) => {
+                  const meta = (cite.location_metadata || {}) as Record<string, unknown>;
+                  const relScore = typeof meta.relevance_score === 'number' ? meta.relevance_score : null;
+                  const relLabel = relScore !== null
+                    ? relScore >= 0.75
+                      ? `Relevance: High (${relScore.toFixed(2)})`
+                      : `Relevance: Moderate (${relScore.toFixed(2)})`
+                    : null;
+
+                  return (
+                    <div
+                      key={cite.id || i}
+                      className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/80 hover:border-zinc-700 transition-colors space-y-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-zinc-300 font-medium">
+                          <FileText className="w-3.5 h-3.5 text-blue-400" />
+                          <span>{String(meta.title || `Citation [${i + 1}]`)}</span>
+                        </div>
+                        {relLabel && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-zinc-800 text-purple-300 border border-purple-900/50 font-semibold">
+                            {relLabel}
+                          </span>
                         )}
                       </div>
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-800 text-zinc-400">
-                        {cite.entity_type}
-                      </span>
+
+                      <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+                        {cite.page_number && <span>Page {cite.page_number}</span>}
+                        {Boolean(meta.clause_reference) && <span>• {String(meta.clause_reference)}</span>}
+                        <span>• ID: {cite.entity_id}</span>
+                      </div>
+
+                      <blockquote className="text-zinc-300 bg-zinc-950/50 p-2.5 rounded border border-zinc-800/50 font-mono text-[11px] leading-relaxed">
+                        &ldquo;{cite.snippet}&rdquo;
+                      </blockquote>
+
+                      {Boolean(meta.match_rationale) && (
+                        <p className="text-[10px] text-zinc-500 italic">
+                          Match: {String(meta.match_rationale)}
+                        </p>
+                      )}
+
+                      {Boolean(meta.synthetic) && (
+                        <div className="pt-1">
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-amber-950/60 text-amber-400 border border-amber-800/50">
+                            SYNTHETIC POLICY CONTEXT • DEMO ONLY
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <blockquote className="text-zinc-300 bg-zinc-950/50 p-2.5 rounded border border-zinc-800/50 font-mono text-[11px] leading-relaxed">
-                      &ldquo;{cite.snippet}&rdquo;
-                    </blockquote>
-                    {cite.source_uri && (
-                      <p className="text-[10px] text-zinc-500 truncate">
-                        Source: {cite.source_uri}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
+
+          {/* Related Citations List (if any) */}
+          {result.related_citations && result.related_citations.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                Related Context Citations ({result.related_citations.length})
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {result.related_citations.map((cite, i) => {
+                  const meta = (cite.location_metadata || {}) as Record<string, unknown>;
+                  const relScore = typeof meta.relevance_score === 'number' ? meta.relevance_score : null;
+
+                  return (
+                    <div
+                      key={cite.id || `rel-${i}`}
+                      className="p-3.5 rounded-xl bg-zinc-900/20 border border-zinc-800/60 space-y-2 text-xs opacity-90"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-zinc-400 font-medium">{String(meta.title || `Related Context [${i + 1}]`)}</span>
+                        {relScore !== null && (
+                          <span className="text-[10px] font-mono text-zinc-500">
+                            Relevance: {relScore.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                      <blockquote className="text-zinc-400 bg-zinc-950/30 p-2 rounded border border-zinc-850 font-mono text-[11px] leading-relaxed">
+                        &ldquo;{cite.snippet}&rdquo;
+                      </blockquote>
+                      {Boolean(meta.synthetic) && (
+                        <span className="text-[9px] font-mono text-amber-500/80">
+                          SYNTHETIC POLICY CONTEXT • DEMO ONLY
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

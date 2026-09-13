@@ -13,7 +13,17 @@ from .chunking import structure_aware_chunk
 from .reranker import Reranker, configured_reranker
 
 
+MIN_RELEVANCE_THRESHOLD = 0.20
+
+def _jaccard(s1: set[str], s2: set[str]) -> float:
+    if not s1 or not s2:
+        return 0.0
+    return len(s1 & s2) / len(s1 | s2)
+
+
 class PgVectorRAG:
+    MIN_RELEVANCE_THRESHOLD = MIN_RELEVANCE_THRESHOLD
+
     def __init__(self, database_url: str, embeddings: Optional[EmbeddingProvider] = None, reranker: Optional[Reranker] = None):
         self.database_url = database_url
         self.embeddings = embeddings or configured_embeddings()
@@ -51,6 +61,11 @@ class PgVectorRAG:
             location_metadata = {"title": title, **{key: value for key, value in metadata.items() if key not in {"version", "effective_from", "effective_to", "security_level", "source_uri"}}}
             if clause:
                 location_metadata["clause"] = clause
+            if "scope" not in location_metadata:
+                if location_metadata.get("tender_id"):
+                    location_metadata["scope"] = "TENDER"
+                elif location_metadata.get("document_type") == "POLICY" or location_metadata.get("is_shared"):
+                    location_metadata["scope"] = "GLOBAL_POLICY"
                 
             chunk = EvidenceChunk(id="%s:%s:%s" % (document_id, number, digest[:12]), entity_type="document_chunk", entity_id=document_id, snippet=part.strip(), source_uri=metadata.get("source_uri"), page_number=page, content_hash=digest, location_metadata=location_metadata, version=metadata.get("version"), effective_from=metadata.get("effective_from"), effective_to=metadata.get("effective_to"), security_level=str(metadata.get("security_level", "INTERNAL")))
             chunks.append(chunk)
@@ -79,11 +94,11 @@ class PgVectorRAG:
         scoped_bidder = filters.get("bidder_id")
 
         if scoped_tenant is not None:
-            clauses.append("(metadata ->> 'tenant_id' = %s OR security_level = 'PUBLIC')")
+            clauses.append("((metadata ->> 'tenant_id' = %s) OR ((metadata ->> 'scope' = 'GLOBAL_POLICY' OR (metadata ->> 'document_type' = 'POLICY' AND metadata ->> 'scope' IS NULL)) AND security_level = 'PUBLIC' AND (metadata ->> 'tenant_id' IS NULL)))")
             params.append(str(scoped_tenant))
 
         if scoped_tender is not None:
-            clauses.append("(metadata ->> 'tender_id' = %s OR security_level = 'PUBLIC' OR (metadata ->> 'is_shared') = 'true' OR (metadata ->> 'document_type' = 'POLICY' AND metadata ->> 'tender_id' IS NULL))")
+            clauses.append("((metadata ->> 'tender_id' = %s) OR ((metadata ->> 'scope' = 'GLOBAL_POLICY' OR (metadata ->> 'document_type' = 'POLICY' AND metadata ->> 'scope' IS NULL)) AND security_level = 'PUBLIC' AND (metadata ->> 'tender_id' IS NULL)))")
             params.append(str(scoped_tender))
 
         if scoped_bidder is not None:
@@ -109,12 +124,65 @@ class PgVectorRAG:
             cur.execute(sql, params)
             rows = cur.fetchall()
             
-        retrieved_chunks = [EvidenceChunk(id=row[0], entity_type=row[1], entity_id=row[2], snippet=row[3], source_uri=row[4], page_number=row[5], location_metadata=row[6], content_hash=row[7], version=row[8], effective_from=row[9], effective_to=row[10], security_level=row[11], created_at=row[12]) for row in rows]
+        retrieved_chunks: list[EvidenceChunk] = []
+        for row in rows:
+            raw_score = float(row[13]) if len(row) > 13 and row[13] is not None else 0.0
+            if raw_score < MIN_RELEVANCE_THRESHOLD:
+                continue
+            meta = dict(row[6] if isinstance(row[6], dict) else {})
+            # Monotonic bounded relevance score in [0.0, 1.0], preserving rank order
+            bounded_score = round(max(0.0, min(1.0, raw_score)), 4)
+            meta["raw_score"] = round(raw_score, 4)
+            meta["bounded_relevance_score"] = bounded_score
+            meta["relevance_score"] = bounded_score
+            chunk = EvidenceChunk(
+                id=row[0],
+                entity_type=row[1],
+                entity_id=row[2],
+                snippet=row[3],
+                source_uri=row[4],
+                page_number=row[5],
+                location_metadata=meta,
+                content_hash=row[7],
+                version=row[8],
+                effective_from=row[9],
+                effective_to=row[10],
+                security_level=row[11],
+                created_at=row[12],
+            )
+            retrieved_chunks.append(chunk)
         
         if not retrieved_chunks:
             return []
             
-        return self.reranker.rerank(query, retrieved_chunks, top_k)
+        reranked = self.reranker.rerank(query, retrieved_chunks, top_k * 2)
+
+        # Exact deduplication by (entity_id, page_number, content_hash)
+        seen_keys: set[tuple[str, Optional[int], str]] = set()
+        deduped: list[EvidenceChunk] = []
+        for chunk in reranked:
+            key = (chunk.entity_id, chunk.page_number, chunk.content_hash)
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            deduped.append(chunk)
+
+        # Near-duplicate suppression (Jaccard similarity > 0.85)
+        final_chunks: list[EvidenceChunk] = []
+        for chunk in deduped:
+            words = set(re.findall(r"[a-z0-9]+", chunk.snippet.lower()))
+            is_near_dup = False
+            for kept in final_chunks:
+                kept_words = set(re.findall(r"[a-z0-9]+", kept.snippet.lower()))
+                if _jaccard(words, kept_words) > 0.85:
+                    is_near_dup = True
+                    break
+            if not is_near_dup:
+                final_chunks.append(chunk)
+            if len(final_chunks) >= top_k:
+                break
+
+        return final_chunks
 
     def delete(self, document_id: str, scope: Optional[dict[str, Any]] = None) -> int:
         clauses = ["entity_id = %s"]

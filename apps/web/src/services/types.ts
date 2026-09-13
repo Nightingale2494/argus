@@ -92,7 +92,11 @@ export interface RAGExplainRequest {
 export interface RAGExplainResponse {
   query: string;
   explanation: string;
+  direct_answer?: string | null;
+  related_context?: string | null;
+  result_class?: 'DIRECT_EVIDENCE' | 'RELATED_CONTEXT' | 'INSUFFICIENT_RETRIEVAL_EVIDENCE';
   citations: EvidenceRead[];
+  related_citations?: EvidenceRead[];
   is_advisory: boolean;
   advisory_disclaimer: string;
   retrieved_at: string;

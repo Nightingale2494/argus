@@ -3560,12 +3560,52 @@
             "type": "string",
             "title": "Explanation"
           },
+          "direct_answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direct Answer"
+          },
+          "related_context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Context"
+          },
+          "result_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Class"
+          },
           "citations": {
             "items": {
               "$ref": "#/components/schemas/EvidenceRead"
             },
             "type": "array",
             "title": "Citations"
+          },
+          "related_citations": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRead"
+            },
+            "type": "array",
+            "title": "Related Citations"
           },
           "is_advisory": {
             "type": "boolean",

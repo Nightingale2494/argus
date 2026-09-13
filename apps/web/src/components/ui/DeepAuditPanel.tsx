@@ -121,7 +121,7 @@ export function DeepAuditPanel({
       }
 
       const syntheticSynthesis: DeepAuditSynthesis = {
-        summary: `Autonomous advisory audit completed for bidder ${bidderName || bidderId}. Identified 1 high-priority conflict regarding turnover reconciliation and 1 valid statutory exemption applicable under GFR Rule 153.`,
+        summary: `Autonomous advisory audit completed for bidder ${bidderName || bidderId}. Identified 1 high-priority conflict regarding turnover reconciliation and 1 valid statutory exemption applicable under Demo Policy Fixture P-153 (Synthetic Procurement Policy — MSME Exemption).`,
         conflicts_detected: [
           {
             clause_reference: "Clause 3.1 vs Clause 4.2",
@@ -132,16 +132,16 @@ export function DeepAuditPanel({
         ],
         policy_precedents: [
           {
-            clause_reference: "GFR Rule 153 (MSME Public Procurement Policy)",
-            precedent_id: "OM-F.1/4/2021-PPD",
-            source: "Ministry of Finance, Procurement Policy Division",
+            clause_reference: "Demo Policy Fixture P-153 (Synthetic Procurement Policy — MSME Exemption)",
+            precedent_id: "SYN-FIXTURE-P153",
+            source: "Synthetic Procurement Policy Context • Demo Only",
             similarity_score: 0.94,
             ruling_summary: "Procuring entities may not reject MSE bidders meeting technical parameters solely on failure of minimum turnover thresholds.",
           },
           {
-            clause_reference: "DoE OM No. F.20/2/2014-PPD",
-            precedent_id: "DOE-OM-2014-RELAXATION",
-            source: "Department of Expenditure",
+            clause_reference: "Demo Policy Fixture P-2014 (Synthetic Startup & MSE Experience Relaxation)",
+            precedent_id: "SYN-FIXTURE-P2014",
+            source: "Synthetic Procurement Policy Context • Demo Only",
             similarity_score: 0.88,
             ruling_summary: "Prior experience criteria relaxation is applicable to registered startups and MSEs in all public goods/service tenders.",
           },

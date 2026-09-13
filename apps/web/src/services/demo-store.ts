@@ -21,8 +21,9 @@ import type {
   DocumentRead,
   FactRead,
 } from '@/types/api';
-import type { AuditEventRead, DeepAuditSynthesis } from '@/services/types';
+import type { AuditEventRead, DeepAuditSynthesis, RAGExplainResponse } from '@/services/types';
 import { parsePdfText, extractBidderFacts, inferDocumentType, computeSha256 } from './pdf-parser';
+import { queryDemoRAG } from './demo-rag';
 
 export interface DemoAttachedFile {
   filename: string;
@@ -593,7 +594,7 @@ const DEFAULT_DEMO_STATE: DemoState = {
   },
   deepAuditSyntheses: {
     bidder_alpha_01: {
-      summary: "Autonomous advisory audit completed for Acme Systems. Identified 1 high-priority conflict regarding turnover reconciliation and 1 valid statutory exemption applicable under GFR Rule 153.",
+      summary: "Autonomous advisory audit completed for Acme Systems. Identified 1 high-priority conflict regarding turnover reconciliation and 1 valid statutory exemption applicable under Demo Policy Fixture P-153 (Synthetic Procurement Policy — MSME Exemption).",
       conflicts_detected: [
         {
           clause_reference: "Clause 3.1 vs Clause 4.2",
@@ -604,9 +605,9 @@ const DEFAULT_DEMO_STATE: DemoState = {
       ],
       policy_precedents: [
         {
-          clause_reference: "GFR Rule 153 (MSME Public Procurement Policy)",
-          precedent_id: "OM-F.1/4/2021-PPD",
-          source: "Ministry of Finance, Procurement Policy Division",
+          clause_reference: "Demo Policy Fixture P-153 (Synthetic Procurement Policy — MSME Exemption)",
+          precedent_id: "SYN-FIXTURE-P153",
+          source: "Synthetic Procurement Policy Context • Demo Only",
           similarity_score: 0.94,
           ruling_summary: "Procuring entities may not reject MSE bidders meeting technical parameters solely on failure of minimum turnover thresholds.",
         },
@@ -2502,5 +2503,24 @@ export const demoStore = {
       message: ev.message || '',
       timestamp: ev.timestamp || new Date().toISOString(),
     }));
+  },
+
+  async queryRAG(tenderId: string, query: string): Promise<RAGExplainResponse> {
+    const tender = this.getTender(tenderId);
+    const reqs = this.getRequirements(tenderId);
+    const turnoverReq = reqs.find((r) => r.requirement_type === 'TURNOVER' || r.field?.includes('turnover'));
+    const expReq = reqs.find((r) => r.requirement_type === 'EXPERIENCE' || r.field?.includes('experience'));
+
+    return queryDemoRAG(query, {
+      tenderId: tender?.id || tenderId,
+      title: tender?.title,
+      budget: tender?.budget ?? undefined,
+      turnoverRequirement: typeof turnoverReq?.expected_value === 'string' || typeof turnoverReq?.expected_value === 'number'
+        ? turnoverReq.expected_value
+        : undefined,
+      experienceYears: typeof expReq?.expected_value === 'string' || typeof expReq?.expected_value === 'number'
+        ? expReq.expected_value
+        : undefined,
+    });
   },
 };

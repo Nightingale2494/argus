@@ -737,7 +737,11 @@ class RAGExplainRequest(BaseModel):
 class RAGExplainResponse(BaseModel):
     query: str
     explanation: str
+    direct_answer: str | None = None
+    related_context: str | None = None
+    result_class: str | None = None
     citations: list[EvidenceRead] = Field(default_factory=list)
+    related_citations: list[EvidenceRead] = Field(default_factory=list)
     is_advisory: bool = True
     advisory_disclaimer: str = "This explanation is purely advisory context generated from retrieved policy clauses. It does NOT decide qualification or override deterministic compliance rules."
     retrieved_at: datetime

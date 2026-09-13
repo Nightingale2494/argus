@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from app.auth.dependencies import get_current_principal
@@ -23,6 +24,25 @@ async def query_rag_evidence(
     return response
 
 
+def _extract_intent_keywords(query: str) -> set[str]:
+    q = query.lower()
+    keywords = set()
+    topic_map = {
+        "msme": {"msme", "micro", "small", "udyam", "exemption", "relaxation"},
+        "turnover": {"turnover", "annual", "financial", "revenue"},
+        "experience": {"experience", "past", "similar", "work", "execution"},
+        "emd": {"emd", "earnest", "money", "deposit", "security", "bid security"},
+        "oem": {"oem", "manufacturer", "authorization", "maf"},
+        "jv": {"jv", "joint venture", "consortium"},
+        "gst": {"gst", "tax", "registration"},
+        "certification": {"iso", "certification", "quality"},
+    }
+    for topic, terms in topic_map.items():
+        if any(t in q for t in terms):
+            keywords.update(terms)
+    return keywords
+
+
 @router.post("/explain", response_model=RAGExplainResponse)
 async def explain_policy_or_clause(
     payload: RAGExplainRequest,
@@ -44,25 +64,81 @@ async def explain_policy_or_clause(
     rag_res = await rag_adapter.retrieve(query_req)
 
     if not rag_res.results:
+        msg = "ARGUS could not find an indexed clause that directly answers this question."
         return RAGExplainResponse(
             query=payload.query,
-            explanation="No matching tender clauses or statutory policy documents were found in the indexed corpus for this query.",
+            explanation=msg,
+            direct_answer=msg,
+            related_context=None,
+            result_class="INSUFFICIENT_RETRIEVAL_EVIDENCE",
             citations=[],
+            related_citations=[],
             is_advisory=True,
             retrieved_at=now,
-            error_code=rag_res.error_code,
-            error_message=rag_res.error_message,
+            error_code=rag_res.error_code or "INSUFFICIENT_RETRIEVAL_EVIDENCE",
+            error_message=rag_res.error_message or msg,
         )
 
-    # Synthesize concise explanation referencing cited snippets
-    top_snippets = [f"[{i+1}] {c.snippet[:150]}..." for i, c in enumerate(rag_res.results[:3])]
-    summary_body = " ".join(top_snippets)
-    explanation = f"Advisory Intelligence: Found {len(rag_res.results)} relevant clause/policy citation(s). Key excerpts: {summary_body}"
+    # Partition into direct citations vs related citations
+    intent_keywords = _extract_intent_keywords(payload.query)
+    stop_words = {
+        "what", "is", "the", "are", "for", "to", "in", "of", "and", "or", "a", "an",
+        "this", "that", "it", "at", "by", "from", "on", "as", "how", "does", "do",
+        "tender", "applicable", "criteria", "requirement", "threshold", "thresholds"
+    }
+    content_terms = set(re.findall(r"[a-z0-9]+", payload.query.lower())) - stop_words
+    match_terms = intent_keywords | content_terms
+
+    direct_citations: list[EvidenceRead] = []
+    related_citations: list[EvidenceRead] = []
+
+    for item in rag_res.results:
+        meta = item.location_metadata or {}
+        score = float(meta.get("relevance_score", 0.0))
+        text_lower = item.snippet.lower()
+        has_keyword_match = any(kw in text_lower for kw in match_terms) if match_terms else False
+
+        if score >= 0.40 or (score >= 0.20 and has_keyword_match):
+            direct_citations.append(item)
+        else:
+            related_citations.append(item)
+
+    if not direct_citations and related_citations:
+        result_class = "RELATED_CONTEXT"
+        direct_answer = "ARGUS could not find an indexed clause that directly answers this question, but found related policy context."
+        top_related = related_citations[0]
+        related_context = top_related.snippet[:300].strip()
+        explanation = f"{direct_answer} Context: {related_context}"
+    elif direct_citations:
+        result_class = "DIRECT_EVIDENCE"
+        top_direct = direct_citations[0]
+        direct_answer = top_direct.snippet.split("\n")[0].strip()
+        if len(direct_answer) > 300:
+            direct_answer = direct_answer[:297] + "..."
+
+        if related_citations:
+            top_rel = related_citations[0]
+            related_context = top_rel.snippet.split("\n")[0].strip()
+            if len(related_context) > 200:
+                related_context = related_context[:197] + "..."
+            explanation = f"{direct_answer} Related context: {related_context}"
+        else:
+            related_context = None
+            explanation = direct_answer
+    else:
+        result_class = "INSUFFICIENT_RETRIEVAL_EVIDENCE"
+        direct_answer = "ARGUS could not find an indexed clause that directly answers this question."
+        related_context = None
+        explanation = direct_answer
 
     return RAGExplainResponse(
         query=payload.query,
         explanation=explanation,
-        citations=rag_res.results,
+        direct_answer=direct_answer,
+        related_context=related_context,
+        result_class=result_class,
+        citations=direct_citations,
+        related_citations=related_citations,
         is_advisory=True,
         retrieved_at=now,
     )
