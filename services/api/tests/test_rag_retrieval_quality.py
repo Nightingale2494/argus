@@ -269,7 +269,7 @@ def test_rag_explain_public_cross_tender_isolation():
     )
 
     mock_res = RAGQueryResponse(
-        query="technical requirement continuous operation",
+        query="technical requirement highway surveillance",
         results=[chunk_a, chunk_global],
         retrieved_at=datetime.now(timezone.utc),
     )
@@ -280,7 +280,7 @@ def test_rag_explain_public_cross_tender_isolation():
             "/api/v1/rag/explain",
             headers=headers,
             json={
-                "query": "technical requirement continuous operation",
+                "query": "technical requirement highway surveillance",
                 "tender_id": "TENDER-A",
             },
         )
@@ -289,7 +289,7 @@ def test_rag_explain_public_cross_tender_isolation():
         # Verify zero cross-tender leakage
         leakage = [c for c in data["citations"] if (c.get("location_metadata") or {}).get("tender_id") == "TENDER-B"]
         assert len(leakage) == 0, f"Expected 0 leakage from Tender B, found: {len(leakage)}"
-        # Verify Tender A and Global Policy are present
+        # Verify Tender A is present
         tender_ids = [(c.get("location_metadata") or {}).get("tender_id") for c in data["citations"]]
         assert "TENDER-A" in tender_ids
 
@@ -311,7 +311,7 @@ def test_rag_explain_score_monotonicity_and_rank_preservation():
         id="chunk-low",
         entity_type="document_chunk",
         entity_id="doc-low",
-        snippet="Supplementary context on engineering experience.",
+        snippet="Supplementary experience requirement: 2 projects minimum.",
         page_number=2,
         location_metadata={"relevance_score": 0.61, "bounded_relevance_score": 0.61, "tender_id": "T-100"},
     )
@@ -342,3 +342,154 @@ def test_rag_explain_score_monotonicity_and_rank_preservation():
         assert score_1 >= score_2
         assert 0.0 <= score_1 <= 1.0
         assert 0.0 <= score_2 <= 1.0
+
+
+def test_rag_explain_msme_exemption_vs_registration_distinction():
+    """Verify that generic document upload / registration clauses do NOT qualify as DIRECT_EVIDENCE for MSME exemption."""
+    client = TestClient(app)
+    headers = get_auth_headers(role=UserRole.PROCUREMENT_OFFICER)
+
+    # Chunk 1: Registration requirement only (e.g. upload Udyam)
+    chunk_reg = EvidenceRead(
+        id="chunk-reg-1",
+        entity_type="document_chunk",
+        entity_id="doc-it-1",
+        snippet="Clause 4.1: Mandatory Documents: Bidder must upload valid Udyam Registration Certificate, GST, and PAN.",
+        page_number=4,
+        location_metadata={"relevance_score": 0.82, "tender_id": "T-100"},
+    )
+
+    mock_res = RAGQueryResponse(
+        query="Is MSME turnover exemption applicable to this tender?",
+        results=[chunk_reg],
+        retrieved_at=datetime.now(timezone.utc),
+    )
+
+    with patch("app.api.v1.rag.rag_adapter.retrieve", new_callable=AsyncMock) as mock_retrieve:
+        mock_retrieve.return_value = mock_res
+        resp = client.post(
+            "/api/v1/rag/explain",
+            headers=headers,
+            json={
+                "query": "Is MSME turnover exemption applicable to this tender?",
+                "tender_id": "T-100",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        # Must NOT be DIRECT_EVIDENCE because it only requires registration
+        assert data["result_class"] == "RELATED_CONTEXT"
+        assert len(data["citations"]) == 0
+        assert len(data["related_citations"]) == 1
+        assert "could not find an indexed clause explicitly granting a turnover exemption" in data["direct_answer"]
+
+
+def test_rag_explain_emd_amount_vs_exemption():
+    """Verify EMD amount query rejects exemption-only clauses from direct evidence, but accepts explicit amounts."""
+    client = TestClient(app)
+    headers = get_auth_headers(role=UserRole.PROCUREMENT_OFFICER)
+
+    # Chunk with exemption / BSD only, no amount
+    chunk_bsd = EvidenceRead(
+        id="chunk-bsd-1",
+        entity_type="document_chunk",
+        entity_id="doc-emd-1",
+        snippet="Clause 5.1: Micro and Small enterprises are exempted from submission of EMD upon submitting Bid Securing Declaration.",
+        page_number=5,
+        location_metadata={"relevance_score": 0.85, "tender_id": "T-100"},
+    )
+
+    mock_res = RAGQueryResponse(
+        query="What is the EMD amount?",
+        results=[chunk_bsd],
+        retrieved_at=datetime.now(timezone.utc),
+    )
+
+    with patch("app.api.v1.rag.rag_adapter.retrieve", new_callable=AsyncMock) as mock_retrieve:
+        mock_retrieve.return_value = mock_res
+        resp = client.post(
+            "/api/v1/rag/explain",
+            headers=headers,
+            json={
+                "query": "What is the EMD amount?",
+                "tender_id": "T-100",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        # Lacks monetary amount -> RELATED_CONTEXT only, 0 direct citations
+        assert data["result_class"] == "RELATED_CONTEXT"
+        assert len(data["citations"]) == 0
+        assert len(data["related_citations"]) == 1
+        assert "could not find an indexed clause explicitly specifying the EMD amount" in data["direct_answer"]
+
+    # Now with explicit EMD amount
+    chunk_amt = EvidenceRead(
+        id="chunk-amt-1",
+        entity_type="document_chunk",
+        entity_id="doc-emd-2",
+        snippet="Clause 5.2: The Earnest Money Deposit (EMD) amount is INR 2,50,000/- payable via DD or Bank Guarantee.",
+        page_number=5,
+        location_metadata={"relevance_score": 0.91, "tender_id": "T-100"},
+    )
+
+    mock_res_amt = RAGQueryResponse(
+        query="What is the EMD amount?",
+        results=[chunk_amt],
+        retrieved_at=datetime.now(timezone.utc),
+    )
+
+    with patch("app.api.v1.rag.rag_adapter.retrieve", new_callable=AsyncMock) as mock_retrieve:
+        mock_retrieve.return_value = mock_res_amt
+        resp = client.post(
+            "/api/v1/rag/explain",
+            headers=headers,
+            json={
+                "query": "What is the EMD amount?",
+                "tender_id": "T-100",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["result_class"] == "DIRECT_EVIDENCE"
+        assert len(data["citations"]) == 1
+        assert "INR 2,50,000" in data["direct_answer"]
+
+
+def test_rag_explain_domain_mismatch_aircraft_engines():
+    """Verify that domain-incompatible queries (e.g. aircraft engines in IT tender) yield INSUFFICIENT_RETRIEVAL_EVIDENCE."""
+    client = TestClient(app)
+    headers = get_auth_headers(role=UserRole.PROCUREMENT_OFFICER)
+
+    chunk_it_warranty = EvidenceRead(
+        id="chunk-war-1",
+        entity_type="document_chunk",
+        entity_id="doc-it-infra",
+        snippet="Clause 6.2: Comprehensive on-site warranty shall be provided for 36 months for all IT hardware, servers, and network switches.",
+        page_number=6,
+        location_metadata={"relevance_score": 0.88, "tender_id": "T-100", "title": "IT Infrastructure Specifications"},
+    )
+
+    mock_res = RAGQueryResponse(
+        query="What is the warranty requirement for aircraft engines?",
+        results=[chunk_it_warranty],
+        retrieved_at=datetime.now(timezone.utc),
+    )
+
+    with patch("app.api.v1.rag.rag_adapter.retrieve", new_callable=AsyncMock) as mock_retrieve:
+        mock_retrieve.return_value = mock_res
+        resp = client.post(
+            "/api/v1/rag/explain",
+            headers=headers,
+            json={
+                "query": "What is the warranty requirement for aircraft engines?",
+                "tender_id": "T-100",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["result_class"] == "INSUFFICIENT_RETRIEVAL_EVIDENCE"
+        assert len(data["citations"]) == 0
+        assert len(data["related_citations"]) == 0
+        assert "could not find an indexed clause that directly answers this question" in data["direct_answer"]
+

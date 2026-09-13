@@ -21,6 +21,38 @@ def _jaccard(s1: set[str], s2: set[str]) -> float:
     return len(s1 & s2) / len(s1 | s2)
 
 
+def _build_fulltext_query(query: str) -> str:
+    """Builds an OR-separated procurement tsquery string avoiding conversational filler terms."""
+    STOP_WORDS = {
+        "what", "is", "the", "are", "for", "to", "in", "of", "and", "or", "a", "an",
+        "this", "that", "it", "at", "by", "from", "on", "as", "how", "does", "do",
+        "can", "tell", "me", "about", "give", "show", "please", "applicable", "requirement",
+        "requirements", "criteria", "tender", "bid", "bidders", "procurement", "clause",
+        "section", "rule", "document", "documents", "qualification", "eligibility",
+        "much", "rate", "fee"
+    }
+    words = [w for w in re.findall(r"[a-z0-9]+", query.lower()) if w not in STOP_WORDS and len(w) > 1]
+    
+    terms = list(words)
+    q_lower = query.lower()
+    if "emd" in q_lower or "earnest" in q_lower:
+        terms.extend(["emd", '"earnest money"', '"bid security"'])
+    if "msme" in q_lower or "udyam" in q_lower or "mse" in q_lower:
+        terms.extend(["msme", "mse", "udyam", '"micro and small"'])
+    if "experience" in q_lower or "similar" in q_lower:
+        terms.extend(["experience", '"similar work"', '"similar projects"'])
+    if "turnover" in q_lower or "revenue" in q_lower:
+        terms.extend(["turnover", "revenue"])
+    if "jv" in q_lower or "joint venture" in q_lower:
+        terms.extend(['"joint venture"', "jv", "consortium"])
+    if "warranty" in q_lower:
+        terms.extend(["warranty", "guarantee"])
+
+    if not terms:
+        return query
+    return " OR ".join(terms)
+
+
 class PgVectorRAG:
     MIN_RELEVANCE_THRESHOLD = MIN_RELEVANCE_THRESHOLD
 
@@ -87,7 +119,8 @@ class PgVectorRAG:
             "(effective_from IS NULL OR effective_from <= NOW())",
             "(effective_to IS NULL OR effective_to >= NOW())"
         ]
-        params: list[Any] = [_vector(self.embeddings.embed(query)), query]
+        fulltext_q = _build_fulltext_query(query)
+        params: list[Any] = [_vector(self.embeddings.embed(query)), fulltext_q]
 
         scoped_tender = filters.get("tender_id")
         scoped_tenant = filters.get("tenant_id")
@@ -115,7 +148,7 @@ class PgVectorRAG:
 
         where = " AND ".join(clauses)
         sql = """SELECT id,entity_type,entity_id,snippet,source_uri,page_number,metadata,content_hash,version,effective_from,effective_to,security_level,created_at,
-        (0.7 * (1 - (embedding <=> %s::vector)) + 0.3 * ts_rank_cd(search_vector, plainto_tsquery('simple', %s))) AS score
+        (0.7 * (1 - (embedding <=> %s::vector)) + 0.3 * ts_rank_cd(search_vector, websearch_to_tsquery('simple', %s))) AS score
         FROM intelligence_evidence_chunks WHERE """ + where + " ORDER BY score DESC LIMIT %s"
         
         fetch_k = top_k * 3

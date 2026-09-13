@@ -166,7 +166,7 @@ def test_pgvector_rag_scoring_threshold_isolation_dedup():
         executed_sql, params = mock_cursor.execute.call_args[0]
         
         # Check hybrid score formula in SQL: 1 - cosine_distance + ts_rank_cd
-        assert "(0.7 * (1 - (embedding <=> %s::vector)) + 0.3 * ts_rank_cd(search_vector, plainto_tsquery('simple', %s))) AS score" in executed_sql
+        assert "(0.7 * (1 - (embedding <=> %s::vector)) + 0.3 * ts_rank_cd(search_vector, websearch_to_tsquery('simple', %s))) AS score" in executed_sql
         # Check tender isolation in SQL: requires matching tender_id OR (GLOBAL_POLICY AND PUBLIC AND tender_id IS NULL)
         assert "metadata ->> 'tender_id' = %s" in executed_sql
         assert "GLOBAL_POLICY" in executed_sql
@@ -396,5 +396,32 @@ def test_pgvector_rag_query_execution_and_isolation_simulation():
         # Public cross-tender leakage count
         leakage_count = sum(1 for c in results if c.location_metadata.get("tender_id") == "TENDER-B")
         assert leakage_count == 0, f"Expected 0 leakage, got {leakage_count}"
+
+
+def test_build_fulltext_query_and_conversational_cleaning():
+    """Verify conversational filler words are cleaned and synonyms expanded with OR."""
+    from argus_ai.rag.pgvector import _build_fulltext_query
+
+    # 1. Experience query
+    ft_exp = _build_fulltext_query("What are the minimum past experience thresholds?")
+    assert "what" not in ft_exp.lower()
+    assert "are" not in ft_exp.lower()
+    assert "the" not in ft_exp.lower()
+    assert "experience" in ft_exp.lower()
+    assert "OR" in ft_exp
+
+    # 2. MSME query
+    ft_msme = _build_fulltext_query("Is MSME turnover exemption applicable to this tender?")
+    assert "is" not in ft_msme.lower()
+    assert "to" not in ft_msme.lower()
+    assert "msme" in ft_msme.lower()
+    assert "OR" in ft_msme
+
+    # 3. EMD amount query
+    ft_emd = _build_fulltext_query("What is the EMD amount?")
+    assert "what" not in ft_emd.lower()
+    assert "is" not in ft_emd.lower()
+    assert "emd" in ft_emd.lower()
+
 
 

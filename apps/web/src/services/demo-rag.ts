@@ -203,6 +203,13 @@ function computeRelevanceScore(query: string, chunk: SyntheticChunk): { score: n
   const qTokens = contentTokens.length > 0 ? contentTokens : allTokens;
 
   const qText = query.toLowerCase();
+
+  // 0. Domain Mismatch Gate: Reject queries for foreign domains
+  const isForeignDomain = qText.includes('aircraft') || qText.includes('engine') || qText.includes('medical') || qText.includes('pharma') || qText.includes('solar');
+  if (isForeignDomain) {
+    return { score: 0, rationale: 'Domain mismatch with tender scope', isDirect: false };
+  }
+
   const chunkTokens = new Set(tokenize(chunk.snippet));
   const tagSet = new Set(chunk.tags.map((t) => t.toLowerCase()));
 
@@ -241,6 +248,8 @@ function computeRelevanceScore(query: string, chunk: SyntheticChunk): { score: n
   const isExperienceQuery = (qText.includes('experience') || qText.includes('past project') || qText.includes('track record')) && !qText.includes('msme') && !qText.includes('exemption');
   const isMsmeQuery = qText.includes('msme') || qText.includes('mse') || qText.includes('udyam') || (qText.includes('exemption') && !qText.includes('emd'));
   const isEmdQuery = qText.includes('emd') || qText.includes('earnest money') || qText.includes('bid security');
+  const isEmdExemptionQuery = isEmdQuery && (qText.includes('exempt') || qText.includes('waiver') || qText.includes('relaxation'));
+  const isEmdAmountQuery = isEmdQuery && !isEmdExemptionQuery;
   const isJvQuery = qText.includes('joint venture') || qText.includes('consortium') || qText.includes('jv') || qText.includes('consortia');
   const isTurnoverQuery = (qText.includes('turnover') || qText.includes('revenue')) && !qText.includes('msme') && !qText.includes('exemption');
   const isOemQuery = qText.includes('oem') || qText.includes('manufacturer') || qText.includes('maf');
@@ -262,8 +271,7 @@ function computeRelevanceScore(query: string, chunk: SyntheticChunk): { score: n
     rawScore += 0.30;
   }
 
-  // Related context handling:
-  // If query is an experience or turnover query, MSME exemption is related context, not direct evidence.
+  // Related context handling & slot requirements:
   let isDirect = topicAligned;
   if (isExperienceQuery && chunk.topic === 'MSME_EXEMPTION') {
     isDirect = false;
@@ -276,6 +284,19 @@ function computeRelevanceScore(query: string, chunk: SyntheticChunk): { score: n
   if (isMsmeQuery && (chunk.topic === 'TURNOVER' || chunk.topic === 'EXPERIENCE')) {
     isDirect = false;
     rawScore = Math.min(rawScore, 0.45);
+  }
+  if (isMsmeQuery && chunk.topic === 'MSME_EXEMPTION') {
+    // Requires explicit exemption/relaxation
+    const hasExemption = /exempt|relaxation|waiver/i.test(chunk.snippet);
+    if (!hasExemption) isDirect = false;
+  }
+  if (isEmdAmountQuery && chunk.topic === 'EMD') {
+    const hasAmount = /₹|inr|rs|lakh|crore|%/i.test(chunk.snippet);
+    if (!hasAmount) isDirect = false;
+  }
+  if (isEmdExemptionQuery && chunk.topic === 'EMD') {
+    const hasExemption = /exempt|waiver|relaxation|bid securing declaration/i.test(chunk.snippet);
+    if (!hasExemption) isDirect = false;
   }
 
   const score = Math.max(0.0, Math.min(1.0, Math.round(rawScore * 100) / 100));
