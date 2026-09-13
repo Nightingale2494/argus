@@ -318,6 +318,7 @@ def test_snapshot_tamper_detection():
 
 def test_langgraph_workflow_node_trace_and_interrupt():
     """LangGraph StateGraph executes real nodes, captures node trace, and respects human interrupt."""
+    pytest.importorskip("langgraph")
     import sys
     from pathlib import Path
     intel_path = str(Path(__file__).resolve().parents[2] / "intelligence")

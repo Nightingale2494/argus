@@ -207,3 +207,43 @@ def test_http_evaluate_bid_endpoint(tmp_path):
     assert len(data["facts"]) > 0
     assert data["compliance_evaluation"]["status"] == "REVIEW_REQUIRED"
     assert data["interrupted"] is True
+
+
+def test_langgraph_workflow_node_trace_and_interrupt():
+    """LangGraph StateGraph executes real nodes, captures node trace, and respects human interrupt."""
+    from langgraph.types import Command
+
+    checkpointer = memory_checkpointer()
+    workflow = build_argus_workflow(checkpointer=checkpointer)
+
+    thread_id = "test-thread-trace-intel-1"
+    config = {"configurable": {"thread_id": thread_id}}
+
+    trace = []
+    initial_state = {
+        "tender": {},
+        "document": {"bidder_id": "bidder-lg-1", "document_id": "doc-lg-1"},
+        "rag_query": {"query": "test eligibility criteria"},
+    }
+
+    for chunk in workflow.stream(initial_state, config=config):
+        for key in chunk.keys():
+            if key not in trace:
+                trace.append(key)
+
+    # Verify expected node execution sequence
+    assert "tender_intelligence" in trace
+    assert "document_intelligence" in trace
+    assert "knowledge" in trace
+    assert "risk" in trace
+    assert "compliance" in trace
+    assert "__interrupt__" in trace
+
+    # Resume human review interrupt with officer input
+    resumed_result = workflow.invoke(
+        Command(resume={"action": "OFFICER_REVIEWED", "notes": "Advisory reviewed"}),
+        config=config,
+    )
+    assert "report" in resumed_result
+    assert "human_action" in resumed_result
+
