@@ -123,6 +123,14 @@ export default function BidderDetailPage() {
     loadBidderData();
   }, [loadBidderData]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#documents") {
+      setTimeout(() => {
+        document.getElementById("documents")?.scrollIntoView({ behavior: "smooth" });
+      }, 150);
+    }
+  }, []);
+
   const handleRunVerification = async () => {
     if (!bidderId) return;
     setTriggeringVerify(true);
@@ -479,7 +487,7 @@ export default function BidderDetailPage() {
       </div>
 
       {/* Uploaded Bidder Documents */}
-      <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-6 space-y-4">
+      <div id="documents" className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-zinc-200 flex items-center gap-2">
             <FileText className="w-4 h-4 text-blue-400" />

@@ -68,7 +68,13 @@ def create_tender(
         entity_id=tender.id,
         actor_id=principal.user_id,
         actor_role=principal.role.value,
-        payload={"tender_number": tender.tender_number, "title": tender.title},
+        payload={
+            "tender_id": tender.id,
+            "tender_number": tender.tender_number,
+            "title": tender.title,
+            "target_url": f"/workspace/tenders/{tender.id}",
+            "message": f"Tender '{tender.tender_number}' created: {tender.title}",
+        },
     )
     return tender
 
@@ -254,6 +260,23 @@ async def process_tender(
             IdempotencyService.complete(db, record, status.HTTP_200_OK, res_payload)
             return job
 
+        AuditLogger.log(
+            db,
+            action="TENDER_DOCUMENT_PARSED",
+            entity_type="DOCUMENT",
+            entity_id=doc.id,
+            actor_id=principal.user_id,
+            actor_role=principal.role.value,
+            payload={
+                "tender_id": id,
+                "document_id": doc.id,
+                "filename": doc.filename,
+                "sha256": doc.sha256,
+                "target_url": f"/workspace/tenders/{id}",
+                "message": f"Tender document '{doc.filename}' verified and parsed",
+            },
+        )
+
         req_id = str(uuid.uuid4())
         AuditLogger.log(
             db,
@@ -262,7 +285,14 @@ async def process_tender(
             entity_id=id,
             actor_id=principal.user_id,
             actor_role=principal.role.value,
-            payload={"job_id": job.id, "request_id": req_id, "document_id": doc.id},
+            payload={
+                "job_id": job.id,
+                "request_id": req_id,
+                "document_id": doc.id,
+                "tender_id": id,
+                "target_url": f"/workspace/tenders/{id}",
+                "message": f"Tender criteria extraction requested for '{doc.filename}'",
+            },
         )
 
         ai_result = await ai_adapter.extract_tender(
@@ -399,6 +429,25 @@ async def process_tender(
                 metadata_json=req_obj.metadata_json or {},
             )
             db.add(db_req)
+            db.flush()
+            AuditLogger.create_entry(
+                db,
+                action="TENDER_REQUIREMENT_EXTRACTED",
+                entity_type="TENDER_REQUIREMENT",
+                entity_id=db_req.id,
+                actor_id=principal.user_id,
+                actor_role=principal.role.value,
+                payload={
+                    "tender_id": id,
+                    "requirement_id": db_req.id,
+                    "clause": db_req.clause,
+                    "field": db_req.field,
+                    "operator": db_req.operator.value if hasattr(db_req.operator, "value") else str(db_req.operator),
+                    "expected_value": db_req.expected_value,
+                    "target_url": f"/workspace/tenders/{id}#criteria",
+                    "message": f"Extracted requirement: clause {db_req.clause or 'N/A'} - {db_req.field} ({db_req.expected_value})",
+                },
+            )
             if c_k:
                 unapproved_clauses[c_k] = db_req
             unapproved_sigs[sig] = db_req
@@ -419,7 +468,14 @@ async def process_tender(
             entity_id=id,
             actor_id=principal.user_id,
             actor_role=principal.role.value,
-            payload={"job_id": job.id, "request_id": req_id, "requirements_count": new_count},
+            payload={
+                "job_id": job.id,
+                "request_id": req_id,
+                "requirements_count": new_count,
+                "tender_id": id,
+                "target_url": f"/workspace/tenders/{id}#criteria",
+                "message": f"Tender requirement extraction completed ({new_count} requirements prepared).",
+            },
         )
 
         res_payload = JobRead.model_validate(job).model_dump(mode="json")
@@ -547,9 +603,12 @@ def create_manual_tender_requirement(
         actor_role=principal.role.value,
         payload={
             "tender_id": tender_id,
+            "requirement_id": req.id,
             "clause": req.clause,
             "field": req.field,
             "is_approved": True,
+            "target_url": f"/workspace/tenders/{tender_id}#criteria",
+            "message": f"Requirement created manually: clause {req.clause or 'N/A'} - {req.field}",
         },
     )
     db.commit()
@@ -613,10 +672,13 @@ def approve_tender_requirement(
             actor_role=principal.role.value,
             payload={
                 "tender_id": tender_id,
+                "requirement_id": req.id,
                 "clause": req.clause,
                 "field": req.field,
                 "approved_by": principal.user_id,
                 "approved_at": now_iso,
+                "target_url": f"/workspace/tenders/{tender_id}#criteria",
+                "message": f"Requirement approved: clause {req.clause or 'N/A'} - {req.field}",
             },
         )
         db.commit()

@@ -27,6 +27,17 @@ export default function ComplianceMatrixPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
   const [selectedEvidenceRow, setSelectedEvidenceRow] = useState<ComplianceMatrixRow | null>(null);
+  const [targetRequirementId, setTargetRequirementId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const req = params.get("requirement");
+      if (req) {
+        setTargetRequirementId(req);
+      }
+    }
+  }, []);
 
   const storedDemoBidder = bidderId ? demoStore.getBidder(bidderId) : null;
   const isDemo = isDemoPreview || Boolean(storedDemoBidder);
@@ -68,6 +79,17 @@ export default function ComplianceMatrixPage() {
   useEffect(() => {
     loadMatrix();
   }, [loadMatrix]);
+
+  useEffect(() => {
+    if (targetRequirementId && matrix.length > 0) {
+      setTimeout(() => {
+        const el = document.getElementById(`req-${targetRequirementId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 150);
+    }
+  }, [targetRequirementId, matrix]);
 
   const filteredMatrix = matrix.filter((row) => {
     if (statusFilter !== "ALL" && row.status !== statusFilter) return false;
@@ -225,39 +247,57 @@ export default function ComplianceMatrixPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/60">
-              {filteredMatrix.map((row) => (
-                <tr key={row.requirement_id} className="hover:bg-zinc-800/30 transition-colors">
-                  <td className="px-5 py-3.5 font-medium text-zinc-200">
-                    <div>{row.clause}</div>
-                    <div className="text-xs text-zinc-500 font-mono mt-0.5">{row.field}</div>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className="px-2 py-0.5 rounded text-xs font-mono bg-zinc-800 text-zinc-300 border border-zinc-700">
-                      {row.requirement_type}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 font-mono text-xs text-zinc-300">
-                    {row.operator} {String(row.expected_value ?? "")}
-                  </td>
-                  <td className="px-5 py-3.5 font-mono text-xs text-blue-300">
-                    {row.observed_value !== null && row.observed_value !== undefined ? String(row.observed_value) : "—"}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    {getStatusBadge(row.status)}
-                  </td>
-                  <td className="px-5 py-3.5 text-xs text-zinc-400 max-w-xs truncate">
-                    {row.reason_code || (row.review_required ? "Officer Review Required" : "Evaluated successfully")}
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <button
-                      onClick={() => setSelectedEvidenceRow(row)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded text-xs font-medium transition-colors"
-                    >
-                      <Eye className="w-3.5 h-3.5" /> Inspect
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filteredMatrix.map((row) => {
+                const isTargeted = targetRequirementId === row.requirement_id;
+                return (
+                  <tr
+                    key={row.requirement_id}
+                    id={`req-${row.requirement_id}`}
+                    className={`transition-colors ${
+                      isTargeted
+                        ? "bg-blue-950/40 border-l-4 border-blue-500 shadow-sm"
+                        : "hover:bg-zinc-800/30"
+                    }`}
+                  >
+                    <td className="px-5 py-3.5 font-medium text-zinc-200">
+                      <div className="flex items-center gap-2">
+                        <span>{row.clause}</span>
+                        {isTargeted && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-900/80 text-blue-300 border border-blue-700">
+                            Audit Focus
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-zinc-500 font-mono mt-0.5">{row.field}</div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="px-2 py-0.5 rounded text-xs font-mono bg-zinc-800 text-zinc-300 border border-zinc-700">
+                        {row.requirement_type}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 font-mono text-xs text-zinc-300">
+                      {row.operator} {String(row.expected_value ?? "")}
+                    </td>
+                    <td className="px-5 py-3.5 font-mono text-xs text-blue-300">
+                      {row.observed_value !== null && row.observed_value !== undefined ? String(row.observed_value) : "—"}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {getStatusBadge(row.status)}
+                    </td>
+                    <td className="px-5 py-3.5 text-xs text-zinc-400 max-w-xs truncate">
+                      {row.reason_code || (row.review_required ? "Officer Review Required" : "Evaluated successfully")}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <button
+                        onClick={() => setSelectedEvidenceRow(row)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded text-xs font-medium transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Inspect
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

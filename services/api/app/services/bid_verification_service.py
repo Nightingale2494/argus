@@ -244,34 +244,175 @@ class BidVerificationService:
 
             verifications_schema: list[VerificationResultRead] = []
 
+            AuditLogger.create_entry(
+                self.db,
+                action="STATUTORY_CHECKS_STARTED",
+                entity_type="BIDDER",
+                entity_id=bidder.id,
+                actor_id=actor_id,
+                actor_role=actor_role,
+                payload={
+                    "bidder_id": bidder.id,
+                    "tender_id": tender.id,
+                    "run_id": run.id,
+                    "target_url": f"/workspace/bidders/{bidder.id}",
+                    "message": f"Statutory verification initiated for bidder '{bidder.bidder_name}'.",
+                },
+            )
+
             # Run GST Verification
             if bidder.gstin:
                 gst_res = await self.gst_adapter.verify(bidder_data, "general.gstin")
                 verifications_schema.append(gst_res)
+                AuditLogger.create_entry(
+                    self.db,
+                    action="GST_VERIFICATION_COMPLETED",
+                    entity_type="BIDDER",
+                    entity_id=bidder.id,
+                    actor_id=actor_id,
+                    actor_role=actor_role,
+                    payload={
+                        "bidder_id": bidder.id,
+                        "tender_id": tender.id,
+                        "run_id": run.id,
+                        "status": gst_res.status.value if hasattr(gst_res.status, "value") else str(gst_res.status),
+                        "verified_value": str(gst_res.verified_value),
+                        "claimed_value": str(gst_res.claimed_value),
+                        "target_url": f"/workspace/bidders/{bidder.id}",
+                        "message": f"GST verification completed: {gst_res.status.value if hasattr(gst_res.status, 'value') else gst_res.status} ({gst_res.verified_value}).",
+                    },
+                )
 
             # Run Udyam Verification
             if bidder.udyam_number:
                 udyam_res = await self.udyam_adapter.verify(bidder_data, "general.udyam")
                 verifications_schema.append(udyam_res)
+                AuditLogger.create_entry(
+                    self.db,
+                    action="UDYAM_VERIFICATION_COMPLETED",
+                    entity_type="BIDDER",
+                    entity_id=bidder.id,
+                    actor_id=actor_id,
+                    actor_role=actor_role,
+                    payload={
+                        "bidder_id": bidder.id,
+                        "tender_id": tender.id,
+                        "run_id": run.id,
+                        "status": udyam_res.status.value if hasattr(udyam_res.status, "value") else str(udyam_res.status),
+                        "verified_value": str(udyam_res.verified_value),
+                        "claimed_value": str(udyam_res.claimed_value),
+                        "target_url": f"/workspace/bidders/{bidder.id}",
+                        "message": f"Udyam verification completed: {udyam_res.status.value if hasattr(udyam_res.status, 'value') else udyam_res.status} ({udyam_res.verified_value}).",
+                    },
+                )
 
             # Run MCA Verification
             if bidder.cin:
                 mca_res = await self.mca_adapter.verify(bidder_data, "general.cin")
                 verifications_schema.append(mca_res)
+                AuditLogger.create_entry(
+                    self.db,
+                    action="CIN_VERIFICATION_COMPLETED",
+                    entity_type="BIDDER",
+                    entity_id=bidder.id,
+                    actor_id=actor_id,
+                    actor_role=actor_role,
+                    payload={
+                        "bidder_id": bidder.id,
+                        "tender_id": tender.id,
+                        "run_id": run.id,
+                        "status": mca_res.status.value if hasattr(mca_res.status, "value") else str(mca_res.status),
+                        "verified_value": str(mca_res.verified_value),
+                        "claimed_value": str(mca_res.claimed_value),
+                        "target_url": f"/workspace/bidders/{bidder.id}",
+                        "message": f"MCA/CIN verification completed: {mca_res.status.value if hasattr(mca_res.status, 'value') else mca_res.status} ({mca_res.verified_value}).",
+                    },
+                )
 
             # Run EPFO Verification
             if bidder.pan or bidder.bidder_name:
                 epfo_res = await self.epfo_adapter.verify(bidder_data, "general.epfo")
                 verifications_schema.append(epfo_res)
+                AuditLogger.create_entry(
+                    self.db,
+                    action="EPFO_VERIFICATION_COMPLETED",
+                    entity_type="BIDDER",
+                    entity_id=bidder.id,
+                    actor_id=actor_id,
+                    actor_role=actor_role,
+                    payload={
+                        "bidder_id": bidder.id,
+                        "tender_id": tender.id,
+                        "run_id": run.id,
+                        "status": epfo_res.status.value if hasattr(epfo_res.status, "value") else str(epfo_res.status),
+                        "verified_value": str(epfo_res.verified_value),
+                        "claimed_value": str(epfo_res.claimed_value),
+                        "target_url": f"/workspace/bidders/{bidder.id}",
+                        "message": f"EPFO verification completed: {epfo_res.status.value if hasattr(epfo_res.status, 'value') else epfo_res.status} ({epfo_res.verified_value}).",
+                    },
+                )
 
             # Run ESIC Verification
             if bidder.pan or bidder.bidder_name:
                 esic_res = await self.esic_adapter.verify(bidder_data, "general.esic")
                 verifications_schema.append(esic_res)
+                AuditLogger.create_entry(
+                    self.db,
+                    action="ESIC_VERIFICATION_COMPLETED",
+                    entity_type="BIDDER",
+                    entity_id=bidder.id,
+                    actor_id=actor_id,
+                    actor_role=actor_role,
+                    payload={
+                        "bidder_id": bidder.id,
+                        "tender_id": tender.id,
+                        "run_id": run.id,
+                        "status": esic_res.status.value if hasattr(esic_res.status, "value") else str(esic_res.status),
+                        "verified_value": str(esic_res.verified_value),
+                        "claimed_value": str(esic_res.claimed_value),
+                        "target_url": f"/workspace/bidders/{bidder.id}",
+                        "message": f"ESIC verification completed: {esic_res.status.value if hasattr(esic_res.status, 'value') else esic_res.status} ({esic_res.verified_value}).",
+                    },
+                )
 
             # Run Blacklist Verification
             blk_res = await self.blacklist_adapter.verify(bidder_data, "debarment.status")
             verifications_schema.append(blk_res)
+            AuditLogger.create_entry(
+                self.db,
+                action="BLACKLIST_VERIFICATION_COMPLETED",
+                entity_type="BIDDER",
+                entity_id=bidder.id,
+                actor_id=actor_id,
+                actor_role=actor_role,
+                payload={
+                    "bidder_id": bidder.id,
+                    "tender_id": tender.id,
+                    "run_id": run.id,
+                    "status": blk_res.status.value if hasattr(blk_res.status, "value") else str(blk_res.status),
+                    "verified_value": str(blk_res.verified_value),
+                    "claimed_value": str(blk_res.claimed_value),
+                    "target_url": f"/workspace/bidders/{bidder.id}",
+                    "message": f"Debarment/Blacklist verification completed: {blk_res.status.value if hasattr(blk_res.status, 'value') else blk_res.status} ({blk_res.verified_value}).",
+                },
+            )
+
+            AuditLogger.create_entry(
+                self.db,
+                action="STATUTORY_CHECKS_COMPLETED",
+                entity_type="BIDDER",
+                entity_id=bidder.id,
+                actor_id=actor_id,
+                actor_role=actor_role,
+                payload={
+                    "bidder_id": bidder.id,
+                    "tender_id": tender.id,
+                    "run_id": run.id,
+                    "checks_count": len(verifications_schema),
+                    "target_url": f"/workspace/bidders/{bidder.id}",
+                    "message": f"Statutory checks completed ({len(verifications_schema)} checks executed) for bidder '{bidder.bidder_name}'.",
+                },
+            )
 
             # Save VerificationResult rows append-only, assigned to run.id
             ver_evidence_map: dict[str, Evidence] = {}
@@ -339,6 +480,23 @@ class BidVerificationService:
             evaluations_schema: list[RuleEvaluationRead] = []
             risk_signals_schema: list[RiskSignalRead] = []
 
+            AuditLogger.create_entry(
+                self.db,
+                action="COMPLIANCE_EVALUATION_STARTED",
+                entity_type="BIDDER",
+                entity_id=bidder.id,
+                actor_id=actor_id,
+                actor_role=actor_role,
+                payload={
+                    "bidder_id": bidder.id,
+                    "tender_id": tender.id,
+                    "run_id": run.id,
+                    "rules_count": len(requirements_schema),
+                    "target_url": f"/workspace/bidders/{bidder.id}/matrix",
+                    "message": f"Compliance evaluation started for {len(requirements_schema)} approved tender clauses.",
+                },
+            )
+
             for req in requirements_schema:
                 eval_res = ComplianceEngine.evaluate(
                     rule=req,
@@ -376,6 +534,43 @@ class BidVerificationService:
                     evaluated_at=eval_res.evaluated_at,
                 )
                 self.db.add(db_eval)
+
+                # Stage per-clause CLAUSE_EVALUATED audit event
+                req_clause = req.clause or "General"
+                req_field = req.field or ""
+                req_type_str = req.requirement_type.value if hasattr(req.requirement_type, "value") else str(req.requirement_type)
+                req_op_str = req.operator.value if hasattr(req.operator, "value") else str(req.operator)
+                status_str = eval_res.status.value if hasattr(eval_res.status, "value") else str(eval_res.status)
+                clause_msg = (
+                    f"Clause {req_clause} • {req_type_str} ({req_field}): "
+                    f"Required {req_op_str} {eval_res.expected_value} | Observed: {eval_res.observed_value or 'None'} -> {status_str}"
+                )
+
+                AuditLogger.create_entry(
+                    self.db,
+                    action="CLAUSE_EVALUATED",
+                    entity_type="RULE_EVALUATION",
+                    entity_id=eval_res.id,
+                    actor_id=actor_id,
+                    actor_role=actor_role,
+                    payload={
+                        "tender_id": tender.id,
+                        "bidder_id": bidder.id,
+                        "compliance_run_id": run.id,
+                        "requirement_id": req.id,
+                        "clause_reference": req_clause,
+                        "requirement_type": req_type_str,
+                        "field": req_field,
+                        "operator": req_op_str,
+                        "expected_value": eval_res.expected_value,
+                        "observed_value": eval_res.observed_value,
+                        "status": status_str,
+                        "reason_code": eval_res.reason_code,
+                        "evidence_ids": mapped_evidence_ids,
+                        "message": clause_msg,
+                        "target_url": f"/workspace/bidders/{bidder.id}/matrix?requirement={req.id}",
+                    },
+                )
 
             # 5. Run Pure Deterministic RiskEngine
             bidder_docs = self.db.query(Document).filter(Document.bidder_id == bidder.id).all()
@@ -679,7 +874,15 @@ class BidVerificationService:
                 entity_id=bidder.id,
                 actor_id=actor_id,
                 actor_role=actor_role,
-                payload={"overall_status": overall_status, "evaluations_count": len(evaluations_schema), "run_id": run.id},
+                payload={
+                    "tender_id": tender.id,
+                    "bidder_id": bidder.id,
+                    "run_id": run.id,
+                    "overall_status": overall_status.value if hasattr(overall_status, "value") else str(overall_status),
+                    "evaluations_count": len(evaluations_schema),
+                    "target_url": f"/workspace/bidders/{bidder.id}/matrix",
+                    "message": f"Compliance evaluation completed for '{bidder.bidder_name}' with overall status: {overall_status.value if hasattr(overall_status, 'value') else overall_status} ({len(evaluations_schema)} clauses evaluated).",
+                },
             )
 
             # Single atomic commit for entire completion batch (run, evaluations, risks, evidence, job, audit)

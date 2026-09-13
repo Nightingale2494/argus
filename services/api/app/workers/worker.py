@@ -6,6 +6,7 @@ import logging
 import time
 from datetime import datetime, timezone
 
+from app.audit.logger import AuditLogger
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.domain import ProcessingJob, Tender, Bidder
@@ -230,6 +231,25 @@ async def execute_job(job_id: str, job_type: str, target_id: str) -> None:
                         metadata_json=req_dict.get("metadata_json", {}),
                     )
                     db.add(req)
+                    db.flush()
+                    AuditLogger.create_entry(
+                        db,
+                        action="TENDER_REQUIREMENT_EXTRACTED",
+                        entity_type="TENDER_REQUIREMENT",
+                        entity_id=req.id,
+                        actor_id="WORKER_DAEMON",
+                        actor_role="SYSTEM",
+                        payload={
+                            "tender_id": target_id,
+                            "requirement_id": req.id,
+                            "clause": req.clause,
+                            "field": req.field,
+                            "operator": req.operator.value if hasattr(req.operator, "value") else str(req.operator),
+                            "expected_value": req.expected_value,
+                            "target_url": f"/workspace/tenders/{target_id}#criteria",
+                            "message": f"Extracted requirement: clause {req.clause or 'N/A'} - {req.field} ({req.expected_value})",
+                        },
+                    )
                     if c_k:
                         unapproved_clauses[c_k] = req
                     unapproved_sigs[sig] = req
@@ -248,6 +268,20 @@ async def execute_job(job_id: str, job_type: str, target_id: str) -> None:
                         status=JobStatus.COMPLETED,
                         progress=100,
                         message="Tender requirements extracted successfully.",
+                    )
+                    AuditLogger.create_entry(
+                        db,
+                        action="TENDER_EXTRACTION_COMPLETED",
+                        entity_type="TENDER",
+                        entity_id=target_id,
+                        actor_id="WORKER_DAEMON",
+                        actor_role="SYSTEM",
+                        payload={
+                            "job_id": job.id,
+                            "tender_id": target_id,
+                            "target_url": f"/workspace/tenders/{target_id}#criteria",
+                            "message": "Tender requirements extracted successfully by background worker.",
+                        },
                     )
                 db.commit()
             finally:

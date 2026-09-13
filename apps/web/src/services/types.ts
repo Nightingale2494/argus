@@ -33,6 +33,14 @@ export interface RawAuditEvent {
   message?: string;
   timestamp?: string;
   created_at?: string;
+  tender_id?: string | null;
+  bidder_id?: string | null;
+  run_id?: string | null;
+  requirement_id?: string | null;
+  clause_reference?: string | null;
+  target_url?: string | null;
+  mode?: 'AUTHENTIC' | 'DEMO';
+  source?: 'BACKEND / DATABASE' | 'DEMO_STORE / SYNTHETIC';
 }
 
 export type AuditEventCategory =
@@ -61,5 +69,14 @@ export interface AuditEventRead {
   entity_type?: string | null;
   entity_id?: string | null;
   actor?: string | null;
+  mode?: 'AUTHENTIC' | 'DEMO';
+  source?: 'BACKEND / DATABASE' | 'DEMO_STORE / SYNTHETIC';
+  target_url?: string | null;
+  tender_id?: string | null;
+  bidder_id?: string | null;
+  run_id?: string | null;
+  requirement_id?: string | null;
+  clause_reference?: string | null;
+  payload_json?: Record<string, unknown> | null;
 }
 

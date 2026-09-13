@@ -121,6 +121,18 @@ export default function TenderDetailPage() {
     loadTenderData();
   }, [loadTenderData]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash;
+      if (hash === "#criteria" || hash === "#requirements") {
+        setActiveTab("requirements");
+        setTimeout(() => {
+          document.getElementById("criteria")?.scrollIntoView({ behavior: "smooth" });
+        }, 150);
+      }
+    }
+  }, []);
+
   const handleExtractRequirements = async () => {
     if (!id) return;
     setExtractingReqs(true);
@@ -461,7 +473,7 @@ export default function TenderDetailPage() {
 
       {/* Tab Content: Requirements */}
       {activeTab === "requirements" && (
-        <div className="space-y-4">
+        <div id="criteria" className="space-y-4">
           <div className="flex justify-between items-center">
             <p className="text-sm text-zinc-400">Statutory and technical clauses extracted from tender documentation.</p>
             <button

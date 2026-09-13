@@ -594,6 +594,12 @@ const DEFAULT_DEMO_STATE: DemoState = {
       stage: 'EXTRACTION',
       status: 'COMPLETED',
       progress: 100,
+      action: 'TENDER_EXTRACTION_COMPLETED',
+      entity_type: 'TENDER',
+      entity_id: 'tender_01',
+      mode: 'DEMO',
+      source: 'DEMO_STORE / SYNTHETIC',
+      target_url: '/workspace/tenders/tender_01?mode=demo#criteria',
       message: 'Tender requirements extracted and candidate rules prepared.',
       timestamp: '2026-08-01T10:06:00Z',
     },
@@ -603,6 +609,12 @@ const DEFAULT_DEMO_STATE: DemoState = {
       stage: 'VERIFICATION',
       status: 'COMPLETED',
       progress: 100,
+      action: 'STATUTORY_CHECKS_COMPLETED',
+      entity_type: 'BIDDER',
+      entity_id: 'bidder_alpha',
+      mode: 'DEMO',
+      source: 'DEMO_STORE / SYNTHETIC',
+      target_url: '/workspace/bidders/bidder_alpha?mode=demo',
       message: 'Registry verification and multi-document fact validation completed.',
       timestamp: '2026-08-20T11:58:00Z',
     },
@@ -612,6 +624,12 @@ const DEFAULT_DEMO_STATE: DemoState = {
       stage: 'COMPLIANCE',
       status: 'COMPLETED',
       progress: 100,
+      action: 'COMPLIANCE_EVALUATION_COMPLETED',
+      entity_type: 'BIDDER',
+      entity_id: 'bidder_alpha',
+      mode: 'DEMO',
+      source: 'DEMO_STORE / SYNTHETIC',
+      target_url: '/workspace/bidders/bidder_alpha/matrix?mode=demo',
       message: 'Deterministic compliance evaluation passed (3/3 rules satisfied).',
       timestamp: '2026-08-20T12:00:00Z',
     },
@@ -681,8 +699,20 @@ function loadFromStorage(): DemoState {
       return t;
     });
 
-    const existingAuditEvents = Array.isArray(parsed.auditEvents) ? parsed.auditEvents : DEFAULT_DEMO_STATE.auditEvents;
-    const finalAuditEvents = addedAuditLogs ? [...recoveryAuditEvents, ...existingAuditEvents] : existingAuditEvents;
+    const rawStoredAuditEvents = Array.isArray(parsed.auditEvents) ? parsed.auditEvents : DEFAULT_DEMO_STATE.auditEvents;
+    const migratedAuditEvents: AuditEventRead[] = rawStoredAuditEvents.map((ev) => {
+      let targetUrl = ev.target_url;
+      if (targetUrl && !targetUrl.includes('mode=demo')) {
+        targetUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}mode=demo`;
+      }
+      return {
+        ...ev,
+        mode: 'DEMO' as const,
+        source: 'DEMO_STORE / SYNTHETIC' as const,
+        target_url: targetUrl,
+      };
+    });
+    const finalAuditEvents = addedAuditLogs ? [...recoveryAuditEvents, ...migratedAuditEvents] : migratedAuditEvents;
 
     return {
       version: CURRENT_DEMO_VERSION,
@@ -1550,6 +1580,13 @@ export const demoStore = {
       stage: 'VERIFICATION',
       status: 'RUNNING',
       progress: 10,
+      action: 'STATUTORY_CHECKS_STARTED',
+      entity_type: 'BIDDER',
+      entity_id: bidderId,
+      mode: 'DEMO',
+      source: 'DEMO_STORE / SYNTHETIC',
+      bidder_id: bidderId,
+      target_url: `/workspace/bidders/${bidderId}?mode=demo`,
       message: `STATUTORY_CHECKS_STARTED: Statutory verification initiated for bidder "${bidder.bidder_name}".`,
       timestamp: now,
     };
@@ -1576,6 +1613,13 @@ export const demoStore = {
           stage: 'VERIFICATION',
           status: 'RUNNING',
           progress: 30,
+          action: 'GST_VERIFICATION_COMPLETED',
+          entity_type: 'BIDDER',
+          entity_id: bidderId,
+          mode: 'DEMO',
+          source: 'DEMO_STORE / SYNTHETIC',
+          bidder_id: bidderId,
+          target_url: `/workspace/bidders/${bidderId}?mode=demo`,
           message: `GST_VERIFICATION_COMPLETED: GSTIN ${bidder.gstin} verified as Active (Tax Regular).`,
           timestamp: new Date().toISOString(),
         },
@@ -1601,6 +1645,13 @@ export const demoStore = {
           stage: 'VERIFICATION',
           status: 'RUNNING',
           progress: 30,
+          action: 'GST_VERIFICATION_COMPLETED',
+          entity_type: 'BIDDER',
+          entity_id: bidderId,
+          mode: 'DEMO',
+          source: 'DEMO_STORE / SYNTHETIC',
+          bidder_id: bidderId,
+          target_url: `/workspace/bidders/${bidderId}?mode=demo`,
           message: `GST_VERIFICATION_COMPLETED: GSTIN not registered or unavailable.`,
           timestamp: new Date().toISOString(),
         },
@@ -1629,6 +1680,13 @@ export const demoStore = {
           stage: 'VERIFICATION',
           status: 'RUNNING',
           progress: 55,
+          action: 'PAN_VERIFICATION_COMPLETED',
+          entity_type: 'BIDDER',
+          entity_id: bidderId,
+          mode: 'DEMO',
+          source: 'DEMO_STORE / SYNTHETIC',
+          bidder_id: bidderId,
+          target_url: `/workspace/bidders/${bidderId}?mode=demo`,
           message: `PAN_VERIFICATION_COMPLETED: PAN ${bidder.pan} verified as Active and Operative (CBDT).`,
           timestamp: new Date().toISOString(),
         },
@@ -1654,6 +1712,13 @@ export const demoStore = {
           stage: 'VERIFICATION',
           status: 'RUNNING',
           progress: 55,
+          action: 'PAN_VERIFICATION_COMPLETED',
+          entity_type: 'BIDDER',
+          entity_id: bidderId,
+          mode: 'DEMO',
+          source: 'DEMO_STORE / SYNTHETIC',
+          bidder_id: bidderId,
+          target_url: `/workspace/bidders/${bidderId}?mode=demo`,
           message: `PAN_VERIFICATION_COMPLETED: PAN not registered or unavailable.`,
           timestamp: new Date().toISOString(),
         },
@@ -1682,6 +1747,13 @@ export const demoStore = {
           stage: 'VERIFICATION',
           status: 'RUNNING',
           progress: 75,
+          action: 'CIN_VERIFICATION_COMPLETED',
+          entity_type: 'BIDDER',
+          entity_id: bidderId,
+          mode: 'DEMO',
+          source: 'DEMO_STORE / SYNTHETIC',
+          bidder_id: bidderId,
+          target_url: `/workspace/bidders/${bidderId}?mode=demo`,
           message: `CIN_VERIFICATION_COMPLETED: Corporate Identity ${bidder.cin} verified (RoC MCA).`,
           timestamp: new Date().toISOString(),
         },
@@ -1707,6 +1779,13 @@ export const demoStore = {
           stage: 'VERIFICATION',
           status: 'RUNNING',
           progress: 75,
+          action: 'CIN_VERIFICATION_COMPLETED',
+          entity_type: 'BIDDER',
+          entity_id: bidderId,
+          mode: 'DEMO',
+          source: 'DEMO_STORE / SYNTHETIC',
+          bidder_id: bidderId,
+          target_url: `/workspace/bidders/${bidderId}?mode=demo`,
           message: `CIN_VERIFICATION_COMPLETED: CIN not registered or unavailable.`,
           timestamp: new Date().toISOString(),
         },
@@ -1735,6 +1814,13 @@ export const demoStore = {
           stage: 'VERIFICATION',
           status: 'RUNNING',
           progress: 90,
+          action: 'UDYAM_VERIFICATION_COMPLETED',
+          entity_type: 'BIDDER',
+          entity_id: bidderId,
+          mode: 'DEMO',
+          source: 'DEMO_STORE / SYNTHETIC',
+          bidder_id: bidderId,
+          target_url: `/workspace/bidders/${bidderId}?mode=demo`,
           message: `UDYAM_VERIFICATION_COMPLETED: UDYAM ${bidder.udyam_number} verified as MSME Registered.`,
           timestamp: new Date().toISOString(),
         },
@@ -1763,6 +1849,13 @@ export const demoStore = {
       stage: 'VERIFICATION',
       status: 'COMPLETED',
       progress: 100,
+      action: 'STATUTORY_CHECKS_COMPLETED',
+      entity_type: 'BIDDER',
+      entity_id: bidderId,
+      mode: 'DEMO',
+      source: 'DEMO_STORE / SYNTHETIC',
+      bidder_id: bidderId,
+      target_url: `/workspace/bidders/${bidderId}?mode=demo`,
       message: `STATUTORY_CHECKS_COMPLETED: Statutory verification checks completed (${results.length} checks recorded) for bidder "${bidder.bidder_name}".`,
       timestamp: new Date().toISOString(),
     };
@@ -1813,6 +1906,14 @@ export const demoStore = {
       stage: 'COMPLIANCE',
       status: 'RUNNING',
       progress: 10,
+      action: 'COMPLIANCE_EVALUATION_STARTED',
+      entity_type: 'BIDDER',
+      entity_id: bidderId,
+      mode: 'DEMO',
+      source: 'DEMO_STORE / SYNTHETIC',
+      tender_id: tenderId,
+      bidder_id: bidderId,
+      target_url: `/workspace/bidders/${bidderId}/matrix?mode=demo`,
       message: `COMPLIANCE_EVALUATION_STARTED: Evaluating compliance against tender requirements for "${bidder.bidder_name}".`,
       timestamp: new Date().toISOString(),
     };
@@ -2008,6 +2109,46 @@ export const demoStore = {
       overall_status = 'REVIEW_REQUIRED';
     }
 
+    // Audit: Per-Clause CLAUSE_EVALUATED events
+    const clauseEvents: AuditEventRead[] = rows.map((r, idx) => {
+      const clauseRef = r.clause || `Clause ${idx + 1}`;
+      const statusText = r.status === 'PASS' ? 'SATISFIED' : (r.status === 'FAIL' ? 'FAILED' : 'REVIEW_REQUIRED');
+      return {
+        id: `evt_${Date.now()}_clause_${r.requirement_id || idx}`,
+        job_id: `job_compliance_${bidderId}`,
+        stage: 'COMPLIANCE',
+        status: r.status === 'PASS' ? 'COMPLETED' : (r.status === 'FAIL' ? 'FAILED' : 'RUNNING'),
+        progress: 80,
+        action: 'CLAUSE_EVALUATED',
+        entity_type: 'REQUIREMENT',
+        entity_id: r.requirement_id || `req_${idx}`,
+        mode: 'DEMO' as const,
+        source: 'DEMO_STORE / SYNTHETIC' as const,
+        tender_id: tenderId,
+        bidder_id: bidderId,
+        requirement_id: r.requirement_id,
+        clause_reference: clauseRef,
+        target_url: `/workspace/bidders/${bidderId}/matrix?requirement=${r.requirement_id}&mode=demo`,
+        message: `Clause ${clauseRef} (${r.field || 'N/A'}): ${statusText} - Expected ${r.operator || '='} ${r.expected_value}, observed ${r.observed_value}`,
+        timestamp: new Date(Date.now() + idx * 5).toISOString(),
+        payload_json: {
+          tender_id: tenderId,
+          bidder_id: bidderId,
+          requirement_id: r.requirement_id,
+          clause_reference: clauseRef,
+          field: r.field,
+          operator: r.operator,
+          expected_value: r.expected_value,
+          observed_value: r.observed_value,
+          status: r.status,
+          reason_code: r.reason_code,
+          evidence_ids: r.evidence_ids,
+          target_url: `/workspace/bidders/${bidderId}/matrix?requirement=${r.requirement_id}&mode=demo`,
+        },
+      };
+    });
+    state.auditEvents = [...clauseEvents, ...state.auditEvents];
+
     // Audit: RULE_EVALUATION_COMPLETED
     const ruleEvt: AuditEventRead = {
       id: `evt_${Date.now()}_rule_eval`,
@@ -2015,6 +2156,14 @@ export const demoStore = {
       stage: 'COMPLIANCE',
       status: 'RUNNING',
       progress: 80,
+      action: 'RULE_EVALUATION_COMPLETED',
+      entity_type: 'BIDDER',
+      entity_id: bidderId,
+      mode: 'DEMO',
+      source: 'DEMO_STORE / SYNTHETIC',
+      tender_id: tenderId,
+      bidder_id: bidderId,
+      target_url: `/workspace/bidders/${bidderId}/matrix?mode=demo`,
       message: `RULE_EVALUATION_COMPLETED: Evaluated ${rows.length} tender rules for bidder "${bidder.bidder_name}".`,
       timestamp: new Date().toISOString(),
     };
@@ -2027,6 +2176,14 @@ export const demoStore = {
       stage: 'COMPLIANCE',
       status: 'COMPLETED',
       progress: 100,
+      action: 'COMPLIANCE_EVALUATION_COMPLETED',
+      entity_type: 'BIDDER',
+      entity_id: bidderId,
+      mode: 'DEMO',
+      source: 'DEMO_STORE / SYNTHETIC',
+      tender_id: tenderId,
+      bidder_id: bidderId,
+      target_url: `/workspace/bidders/${bidderId}/matrix?mode=demo`,
       message: `COMPLIANCE_EVALUATION_COMPLETED: Deterministic evaluation concluded with overall status: ${overall_status} (${rows.filter((r) => r.status === 'PASS').length}/${rows.length} rules satisfied).`,
       timestamp: new Date().toISOString(),
     };
@@ -2079,8 +2236,21 @@ export const demoStore = {
       stage: 'REPORTING',
       status: 'COMPLETED',
       progress: 100,
+      action: 'HUMAN_DECISION_RECORDED',
+      entity_type: 'BIDDER',
+      entity_id: bidderId,
+      mode: 'DEMO',
+      source: 'DEMO_STORE / SYNTHETIC',
+      bidder_id: bidderId,
+      target_url: `/workspace/bidders/${bidderId}/review?mode=demo`,
       message: `Officer recorded human decision: ${decision} for bidder ${bidderId}.`,
       timestamp: new Date().toISOString(),
+      payload_json: {
+        bidder_id: bidderId,
+        officer_decision: decision,
+        status: decision,
+        target_url: `/workspace/bidders/${bidderId}/review?mode=demo`,
+      },
     };
     state.auditEvents = [evt, ...state.auditEvents];
 
@@ -2100,6 +2270,30 @@ export const demoStore = {
     const tender = this.getTender(bidder.tender_id);
     const matrix = this.getComplianceMatrix(bidderId);
     const decision = state.humanDecisions[bidderId] || 'PENDING';
+
+    const reportEvt: AuditEventRead = {
+      id: `evt_${Date.now()}_report_viewed`,
+      stage: 'REPORTING',
+      status: 'COMPLETED',
+      progress: 100,
+      action: 'REPORT_VIEWED',
+      entity_type: 'REPORT',
+      entity_id: bidderId,
+      mode: 'DEMO',
+      source: 'DEMO_STORE / SYNTHETIC',
+      bidder_id: bidderId,
+      tender_id: bidder.tender_id,
+      target_url: `/workspace/bidders/${bidderId}/report?mode=demo`,
+      message: `Evaluation report viewed for bidder "${bidder.bidder_name}".`,
+      timestamp: new Date().toISOString(),
+      payload_json: {
+        bidder_id: bidderId,
+        tender_id: bidder.tender_id,
+        target_url: `/workspace/bidders/${bidderId}/report?mode=demo`,
+      },
+    };
+    state.auditEvents = [reportEvt, ...state.auditEvents];
+    saveToStorage(state);
 
     return {
       generated_at: new Date().toISOString(),
@@ -2145,7 +2339,17 @@ export const demoStore = {
 
   addAuditEvent(event: AuditEventRead): void {
     const state = loadFromStorage();
-    state.auditEvents = [event, ...state.auditEvents];
+    let targetUrl = event.target_url;
+    if (targetUrl && !targetUrl.includes('mode=demo')) {
+      targetUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}mode=demo`;
+    }
+    const enriched: AuditEventRead = {
+      ...event,
+      mode: 'DEMO',
+      source: 'DEMO_STORE / SYNTHETIC',
+      target_url: targetUrl,
+    };
+    state.auditEvents = [enriched, ...state.auditEvents];
     saveToStorage(state);
   },
 

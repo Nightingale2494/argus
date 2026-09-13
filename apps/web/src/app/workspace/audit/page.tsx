@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { 
   ShieldCheck, RefreshCw, Filter, Search, Clock, 
-  CheckCircle, XCircle, AlertCircle
+  CheckCircle, XCircle, AlertCircle, ExternalLink, Database, Sparkles,
+  Scale, UserCheck, ArrowUpRight
 } from "lucide-react";
 import { api } from "@/services/api";
 import { demoStore } from "@/services/demo-store";
@@ -19,6 +21,7 @@ export default function AuditPage() {
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
+  const [modeFilter, setModeFilter] = useState<"ALL" | "AUTHENTIC" | "DEMO">("ALL");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [stageFilter, setStageFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -53,6 +56,8 @@ export default function AuditPage() {
   }, [loadAuditEvents]);
 
   const filteredEvents = events.filter((ev) => {
+    const evMode = ev.mode || (isDemoPreview ? "DEMO" : "AUTHENTIC");
+    if (modeFilter !== "ALL" && evMode !== modeFilter) return false;
     if (categoryFilter !== "ALL" && ev.event_category !== categoryFilter) return false;
     if (stageFilter !== "ALL") {
       const evStage = ev.pipeline_stage || ev.stage;
@@ -72,7 +77,8 @@ export default function AuditPage() {
       const actionMatch = ev.action?.toLowerCase().includes(q);
       const entityMatch = ev.entity_id?.toLowerCase().includes(q) || ev.entity_type?.toLowerCase().includes(q);
       const actorMatch = ev.actor?.toLowerCase().includes(q);
-      if (!msgMatch && !stageMatch && !jobMatch && !actionMatch && !entityMatch && !actorMatch) return false;
+      const clauseMatch = ev.clause_reference?.toLowerCase().includes(q);
+      if (!msgMatch && !stageMatch && !jobMatch && !actionMatch && !entityMatch && !actorMatch && !clauseMatch) return false;
     }
     return true;
   });
@@ -86,6 +92,23 @@ export default function AuditPage() {
     } catch {
       return "Time unavailable";
     }
+  };
+
+  const getModeBadge = (mode?: string, source?: string) => {
+    const isDemo = mode === "DEMO";
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${
+          isDemo
+            ? "bg-amber-950/60 text-amber-300 border-amber-800/60"
+            : "bg-emerald-950/60 text-emerald-300 border-emerald-800/60"
+        }`}
+        title={`Source: ${source || (isDemo ? "DEMO_STORE / SYNTHETIC" : "BACKEND / DATABASE")}`}
+      >
+        {isDemo ? <Sparkles className="w-2.5 h-2.5 text-amber-400" /> : <Database className="w-2.5 h-2.5 text-emerald-400" />}
+        {isDemo ? "DEMO" : "AUTHENTIC"}
+      </span>
+    );
   };
 
   const getCategoryBadge = (category?: string) => {
@@ -172,21 +195,30 @@ export default function AuditPage() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search audit messages or Job IDs..."
+              placeholder="Search audit events, clauses, or Job IDs..."
               className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-blue-500"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Filter className="w-3.5 h-3.5 text-zinc-400" />
+            <select
+              value={modeFilter}
+              onChange={(e) => setModeFilter(e.target.value as "ALL" | "AUTHENTIC" | "DEMO")}
+              className="px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 font-mono"
+            >
+              <option value="ALL">All Modes</option>
+              <option value="AUTHENTIC">Authentic Mode</option>
+              <option value="DEMO">Demo Preview</option>
+            </select>
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 font-mono"
             >
               <option value="ALL">All Categories</option>
+              <option value="COMPLIANCE">Compliance Engine</option>
               <option value="PIPELINE">Pipeline Execution</option>
               <option value="PROVIDER_HEALTH">Provider Health</option>
-              <option value="COMPLIANCE">Compliance Engine</option>
               <option value="TENDER">Tender Governance</option>
               <option value="BIDDER">Bidder Management</option>
               <option value="DOCUMENT">Document Lifecycle</option>
@@ -247,6 +279,7 @@ export default function AuditPage() {
             <thead>
               <tr className="border-b border-zinc-800 text-xs text-zinc-400 font-semibold bg-zinc-950/40">
                 <th className="px-5 py-3">Timestamp</th>
+                <th className="px-5 py-3">Mode</th>
                 <th className="px-5 py-3">Category / Stage</th>
                 <th className="px-5 py-3">Job ID</th>
                 <th className="px-5 py-3">Status</th>
@@ -257,12 +290,19 @@ export default function AuditPage() {
             <tbody className="divide-y divide-zinc-800/60">
               {filteredEvents.map((ev, i) => {
                 const stageDisplay = ev.pipeline_stage || ev.stage;
+                const payload = (ev.payload_json || {}) as Record<string, unknown>;
+                const isClauseEval = ev.action === "CLAUSE_EVALUATED";
+                const isDecision = ev.action === "HUMAN_DECISION_RECORDED";
+
                 return (
-                  <tr key={ev.id || i} className="hover:bg-zinc-800/30 transition-colors">
-                    <td className="px-5 py-3 font-mono text-xs text-zinc-400 whitespace-nowrap">
+                  <tr key={ev.id || i} className="hover:bg-zinc-800/30 transition-colors group">
+                    <td className="px-5 py-3.5 font-mono text-xs text-zinc-400 whitespace-nowrap">
                       {formatTimestamp(ev.timestamp)}
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3.5 whitespace-nowrap">
+                      {getModeBadge(ev.mode, ev.source)}
+                    </td>
+                    <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
                         {getCategoryBadge(ev.event_category)}
                         {stageDisplay && String(stageDisplay) !== "—" ? (
@@ -274,20 +314,112 @@ export default function AuditPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-3 font-mono text-xs text-zinc-500 truncate max-w-[120px]" title={ev.job_id ?? undefined}>
+                    <td className="px-5 py-3.5 font-mono text-xs text-zinc-500 truncate max-w-[120px]" title={ev.job_id ?? undefined}>
                       {ev.job_id || "—"}
                     </td>
-                    <td className="px-5 py-3">{getStatusBadge(ev.status)}</td>
-                    <td className="px-5 py-3 font-mono text-xs text-blue-400">
+                    <td className="px-5 py-3.5">{getStatusBadge(ev.status)}</td>
+                    <td className="px-5 py-3.5 font-mono text-xs text-blue-400">
                       {ev.progress != null ? `${ev.progress}%` : "—"}
                     </td>
-                    <td className="px-5 py-3 text-xs text-zinc-300">
-                      <div>{ev.message || "—"}</div>
-                      {(ev.action || ev.entity_type) && (
-                        <div className="text-[11px] font-mono text-zinc-500 mt-0.5">
-                          {ev.action}
-                          {ev.entity_type ? ` • ${ev.entity_type}:${ev.entity_id}` : ''}
-                          {ev.actor ? ` • actor:${ev.actor}` : ''}
+                    <td className="px-5 py-3.5 text-xs text-zinc-300">
+                      {/* 1. Specialized Presentation: CLAUSE_EVALUATED */}
+                      {isClauseEval ? (
+                        <div className="p-3 rounded-lg bg-zinc-950/80 border border-indigo-900/40 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 font-mono font-semibold text-zinc-200">
+                              <Scale className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
+                              <span>{String(payload.clause_reference || ev.clause_reference || "Clause")}</span>
+                              <span className="text-zinc-500 font-normal text-[11px]">
+                                ({String(payload.field || "criterion")})
+                              </span>
+                            </div>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${
+                                payload.status === "PASS" || payload.status === "SATISFIED"
+                                  ? "bg-emerald-950/80 text-emerald-300 border-emerald-800/60"
+                                  : payload.status === "FAIL" || payload.status === "FAILED"
+                                  ? "bg-rose-950/80 text-rose-300 border-rose-800/60"
+                                  : "bg-amber-950/80 text-amber-300 border-amber-800/60"
+                              }`}
+                            >
+                              {String(payload.status || "EVALUATED")}
+                            </span>
+                          </div>
+                          <div className="text-[11px] font-mono text-zinc-400 grid grid-cols-1 sm:grid-cols-2 gap-1 bg-zinc-900/60 p-2 rounded border border-zinc-800/60">
+                            <div>
+                              <span className="text-zinc-500">Expected: </span>
+                              <span className="text-zinc-300">{String(payload.operator || "=")} {String(payload.expected_value ?? "—")}</span>
+                            </div>
+                            <div>
+                              <span className="text-zinc-500">Observed: </span>
+                              <span className="text-zinc-200 font-semibold">{String(payload.observed_value ?? "—")}</span>
+                            </div>
+                          </div>
+                          {ev.target_url && (
+                            <div className="pt-1 flex justify-end">
+                              <Link
+                                href={ev.target_url}
+                                className="inline-flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 font-mono transition-colors"
+                              >
+                                <span>Inspect Rule in Matrix</span>
+                                <ArrowUpRight className="w-3 h-3" />
+                              </Link>
+                            </div>
+                          )}
+                        </div>
+                      ) : isDecision ? (
+                        /* 2. Specialized Presentation: HUMAN_DECISION_RECORDED */
+                        <div className="p-3 rounded-lg bg-zinc-950/80 border border-emerald-900/40 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 font-mono font-semibold text-zinc-200">
+                              <UserCheck className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                              <span>Decision: {String(payload.officer_decision || payload.status || "DETERMINED")}</span>
+                              {payload.decision_type === "OVERRIDE" && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-950/80 text-purple-300 border border-purple-800/60">
+                                  OVERRIDE
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] font-mono text-zinc-400">
+                              By: {String(payload.officer_name || ev.actor || "Officer")}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-zinc-300 bg-zinc-900/60 p-2 rounded border border-zinc-800/60">
+                            <span className="text-zinc-500 font-mono">Remarks: </span>
+                            <span>{String(payload.remarks || "No remarks provided.")}</span>
+                          </div>
+                          {ev.target_url && (
+                            <div className="pt-1 flex justify-end">
+                              <Link
+                                href={ev.target_url}
+                                className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 font-mono transition-colors"
+                              >
+                                <span>Open Human Review</span>
+                                <ArrowUpRight className="w-3 h-3" />
+                              </Link>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        /* 3. General Event Presentation with Target Navigation */
+                        <div>
+                          <div>{ev.message || "—"}</div>
+                          {(ev.action || ev.entity_type) && (
+                            <div className="text-[11px] font-mono text-zinc-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                              {ev.action && <span className="text-zinc-400">{ev.action}</span>}
+                              {ev.entity_type && <span>• {ev.entity_type}:{ev.entity_id}</span>}
+                              {ev.actor && <span>• actor:{ev.actor}</span>}
+                              {ev.target_url && (
+                                <Link
+                                  href={ev.target_url}
+                                  className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 transition-colors ml-1"
+                                >
+                                  <span>View Resource</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </Link>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </td>

@@ -108,18 +108,21 @@ class DocumentService:
             db.add(doc)
             AuditLogger.create_entry(
                 db,
-                action="DOCUMENT_UPLOADED",
+                action="TENDER_DOCUMENT_UPLOADED",
                 entity_type="DOCUMENT",
                 entity_id=doc.id,
                 actor_id=principal.user_id,
                 actor_role=principal.role.value,
                 payload={
                     "tender_id": doc.tender_id,
+                    "document_id": doc.id,
                     "document_type": str(doc.document_type),
                     "filename": doc.filename,
                     "sha256": doc.sha256,
                     "size_bytes": doc.size_bytes,
                     "storage_uri": doc.storage_uri,
+                    "target_url": f"/workspace/tenders/{doc.tender_id}",
+                    "message": f"Tender document '{doc.filename}' uploaded.",
                 },
             )
             db.commit()
@@ -236,18 +239,21 @@ class DocumentService:
             db.add(doc)
             AuditLogger.create_entry(
                 db,
-                action="DOCUMENT_UPLOADED",
+                action="BIDDER_DOCUMENT_UPLOADED",
                 entity_type="DOCUMENT",
                 entity_id=doc.id,
                 actor_id=principal.user_id,
                 actor_role=principal.role.value,
                 payload={
                     "bidder_id": doc.bidder_id,
+                    "document_id": doc.id,
                     "document_type": str(doc.document_type),
                     "filename": doc.filename,
                     "sha256": doc.sha256,
                     "size_bytes": doc.size_bytes,
                     "storage_uri": doc.storage_uri,
+                    "target_url": f"/workspace/bidders/{doc.bidder_id}#documents",
+                    "message": f"Bidder document '{doc.filename}' uploaded.",
                 },
             )
             db.commit()

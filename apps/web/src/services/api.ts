@@ -577,24 +577,63 @@ export function normalizeAuditEvent(raw: RawAuditEvent | Record<string, unknown>
     progress = null;
   } else if (actionName.startsWith('AUTH_') || actionName.includes('SESSION') || actionName.includes('LOGIN')) {
     eventCategory = 'AUTH';
-  } else if (actionName.startsWith('DOCUMENT_')) {
+  } else if (actionName.startsWith('DOCUMENT_') || actionName.startsWith('TENDER_DOCUMENT') || actionName.startsWith('BIDDER_DOCUMENT')) {
     eventCategory = 'DOCUMENT';
-  } else if (actionName.startsWith('TENDER_REQUIREMENT_')) {
+  } else if (actionName.startsWith('TENDER_REQUIREMENT_') || actionName.startsWith('TENDER_')) {
     eventCategory = 'TENDER';
-  } else if (actionName.startsWith('TENDER_')) {
-    eventCategory = 'TENDER';
-  } else if (actionName.startsWith('BIDDER_')) {
-    eventCategory = 'BIDDER';
+  } else if (actionName.startsWith('CLAUSE_') || actionName === 'CLAUSE_EVALUATED') {
+    eventCategory = 'COMPLIANCE';
+    pipelineStage = 'COMPLIANCE';
+  } else if (actionName.startsWith('STATUTORY_') || actionName.endsWith('_VERIFICATION_COMPLETED')) {
+    eventCategory = 'COMPLIANCE';
+    pipelineStage = 'VERIFICATION';
   } else if (actionName.startsWith('COMPLIANCE_')) {
     eventCategory = 'COMPLIANCE';
     pipelineStage = 'COMPLIANCE';
-  } else if (actionName.startsWith('HUMAN_DECISION_')) {
+  } else if (actionName.startsWith('HUMAN_DECISION_') || actionName.startsWith('REPORT_')) {
     eventCategory = 'HUMAN_DECISION';
     pipelineStage = 'REPORTING';
+  } else if (actionName.startsWith('BIDDER_')) {
+    eventCategory = 'BIDDER';
   } else if (actionName.startsWith('JOB_') || actionName.includes('EXTRACTION') || actionName.includes('VERIFICATION')) {
     eventCategory = 'PIPELINE';
   } else if (actionName.startsWith('SYSTEM_')) {
     eventCategory = 'SYSTEM';
+  }
+
+  // 8. CORRELATION IDENTIFIERS & TARGET URL RESOLUTION:
+  const tenderId = (payload.tender_id as string) || (rawRecord.tender_id as string) || (rawRecord.entity_type === 'TENDER' ? rawRecord.entity_id : null) || null;
+  const bidderId = (payload.bidder_id as string) || (rawRecord.bidder_id as string) || (rawRecord.entity_type === 'BIDDER' ? rawRecord.entity_id : null) || null;
+  const runId = (payload.run_id as string) || (rawRecord.run_id as string) || null;
+  const reqId = (payload.requirement_id as string) || (rawRecord.requirement_id as string) || (rawRecord.entity_type === 'REQUIREMENT' || rawRecord.entity_type === 'TENDER_REQUIREMENT' ? rawRecord.entity_id : null) || null;
+  const clauseRef = (payload.clause_reference as string) || (payload.clause as string) || (rawRecord.clause_reference as string) || null;
+
+  let targetUrl: string | null = null;
+  if (typeof payload.target_url === 'string' && payload.target_url.trim()) {
+    targetUrl = payload.target_url.trim();
+  } else if (typeof rawRecord.target_url === 'string' && rawRecord.target_url.trim()) {
+    targetUrl = rawRecord.target_url.trim();
+  } else {
+    if (actionName === 'CLAUSE_EVALUATED' && bidderId) {
+      targetUrl = reqId ? `/workspace/bidders/${bidderId}/matrix?requirement=${reqId}` : `/workspace/bidders/${bidderId}/matrix`;
+    } else if (actionName.startsWith('HUMAN_DECISION') && bidderId) {
+      targetUrl = `/workspace/bidders/${bidderId}/review`;
+    } else if ((actionName.startsWith('REPORT_') || actionName.includes('REPORT')) && bidderId) {
+      targetUrl = `/workspace/bidders/${bidderId}/report`;
+    } else if (actionName.startsWith('COMPLIANCE_') && bidderId) {
+      targetUrl = `/workspace/bidders/${bidderId}/matrix`;
+    } else if ((actionName.startsWith('STATUTORY_') || actionName.includes('VERIFICATION')) && bidderId) {
+      targetUrl = `/workspace/bidders/${bidderId}`;
+    } else if (actionName.startsWith('TENDER_REQUIREMENT') && tenderId) {
+      targetUrl = `/workspace/tenders/${tenderId}#criteria`;
+    } else if (actionName.startsWith('DOCUMENT_') || actionName.startsWith('BIDDER_DOCUMENT')) {
+      if (bidderId) targetUrl = `/workspace/bidders/${bidderId}#documents`;
+      else if (tenderId) targetUrl = `/workspace/tenders/${tenderId}`;
+    } else if (bidderId) {
+      targetUrl = `/workspace/bidders/${bidderId}`;
+    } else if (tenderId) {
+      targetUrl = `/workspace/tenders/${tenderId}`;
+    }
   }
 
   return {
@@ -611,6 +650,15 @@ export function normalizeAuditEvent(raw: RawAuditEvent | Record<string, unknown>
     entity_type: rawRecord.entity_type || null,
     entity_id: rawRecord.entity_id || null,
     actor: rawRecord.actor_id || rawRecord.actor_role || null,
+    mode: (rawRecord.mode as 'AUTHENTIC' | 'DEMO') || 'AUTHENTIC',
+    source: (rawRecord.source as 'BACKEND / DATABASE' | 'DEMO_STORE / SYNTHETIC') || 'BACKEND / DATABASE',
+    target_url: targetUrl,
+    tender_id: tenderId,
+    bidder_id: bidderId,
+    run_id: runId,
+    requirement_id: reqId,
+    clause_reference: clauseRef,
+    payload_json: payload,
   };
 }
 

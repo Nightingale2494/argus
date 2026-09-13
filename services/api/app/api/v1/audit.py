@@ -28,5 +28,5 @@ def list_audit_events(
     if action:
         query = query.filter(AuditEvent.action == action)
 
-    events = query.order_by(AuditEvent.timestamp.desc()).limit(limit).all()
+    events = query.order_by(AuditEvent.timestamp.desc(), AuditEvent.id.desc()).limit(limit).all()
     return events

@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+import app.models.domain  # noqa: F401
 from app.db.session import Base, engine
 from app.main import app
 from app.schemas.canonical import UserRole

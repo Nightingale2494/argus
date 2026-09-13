@@ -101,7 +101,14 @@ async def create_bidder(
         entity_id=bidder.id,
         actor_id=principal.user_id,
         actor_role=principal.role.value,
-        payload={"bidder_name": bidder.bidder_name, "gstin": bidder.gstin},
+        payload={
+            "tender_id": tender_id,
+            "bidder_id": bidder.id,
+            "bidder_name": bidder.bidder_name,
+            "gstin": bidder.gstin,
+            "target_url": f"/workspace/bidders/{bidder.id}",
+            "message": f"Bidder registered: '{bidder.bidder_name}' (GSTIN: {bidder.gstin or 'Not Registered'})",
+        },
     )
 
     db.refresh(bidder)
@@ -445,6 +452,27 @@ def record_human_decision(
     db.commit()
     db.refresh(decision)
 
+    latest_run = (
+        db.query(ComplianceRun)
+        .filter(ComplianceRun.bidder_id == id)
+        .order_by(ComplianceRun.created_at.desc())
+        .first()
+    )
+    machine_status = (
+        latest_run.overall_status.value
+        if (latest_run and hasattr(latest_run.overall_status, "value"))
+        else (str(latest_run.overall_status) if latest_run and latest_run.overall_status else "UNKNOWN")
+    )
+    status_val = payload.status.value if hasattr(payload.status, "value") else str(payload.status)
+    decision_type = (
+        "OVERRIDE"
+        if (machine_status != "UNKNOWN" and (
+            (machine_status == "COMPLIANT" and status_val != "APPROVED") or
+            (machine_status != "COMPLIANT" and status_val == "APPROVED")
+        ))
+        else "STANDARD"
+    )
+
     AuditLogger.log(
         db,
         action="HUMAN_DECISION_RECORDED",
@@ -453,9 +481,19 @@ def record_human_decision(
         actor_id=principal.user_id,
         actor_role=principal.role.value,
         payload={
-            "status": payload.status,
-            "reason_code": payload.reason_code,
+            "tender_id": bidder.tender_id,
+            "bidder_id": id,
+            "bidder_name": bidder.bidder_name,
+            "officer_id": officer_id,
             "officer_name": officer_name,
+            "officer_decision": status_val,
+            "status": status_val,
+            "machine_compliance_status": machine_status,
+            "decision_type": decision_type,
+            "reason_code": payload.reason_code,
+            "remarks": payload.remarks,
+            "target_url": f"/workspace/bidders/{id}/review",
+            "message": f"Human review decision recorded: {status_val} by {officer_name} ({decision_type}). Machine: {machine_status}. Remarks: {payload.remarks or 'None'}",
         },
     )
     return decision
@@ -885,6 +923,23 @@ async def get_bidder_report(
         db, bidder, target_run, evaluations_db, verifications_db
     )
 
+    AuditLogger.log(
+        db,
+        action="REPORT_VIEWED",
+        entity_type="REPORT",
+        entity_id=id,
+        actor_id=principal.user_id,
+        actor_role=principal.role.value,
+        payload={
+            "tender_id": bidder.tender_id,
+            "bidder_id": id,
+            "bidder_name": bidder.bidder_name,
+            "run_id": target_run.id if target_run else None,
+            "target_url": f"/workspace/bidders/{id}/report",
+            "message": f"Evaluation report viewed for bidder '{bidder.bidder_name}'",
+        },
+    )
+
     return ReportRead(
         generated_at=datetime.now(timezone.utc),
         tender=tender,
@@ -983,7 +1038,15 @@ async def process_bidder_documents(
         entity_id=bidder_id,
         actor_id=principal.user_id,
         actor_role=principal.role.value,
-        payload={"job_id": job.id, "request_id": req_id},
+        payload={
+            "job_id": job.id,
+            "request_id": req_id,
+            "tender_id": bidder.tender_id,
+            "bidder_id": bidder_id,
+            "bidder_name": bidder.bidder_name,
+            "target_url": f"/workspace/bidders/{bidder_id}#documents",
+            "message": f"Document extraction requested for bidder '{bidder.bidder_name}'",
+        },
     )
 
     documents = db.query(Document).filter(Document.bidder_id == bidder_id).all()
@@ -1071,6 +1134,24 @@ async def process_bidder_documents(
             )
             continue
 
+        AuditLogger.log(
+            db,
+            action="DOCUMENT_PARSED",
+            entity_type="DOCUMENT",
+            entity_id=doc.id,
+            actor_id=principal.user_id,
+            actor_role=principal.role.value,
+            payload={
+                "tender_id": bidder.tender_id,
+                "bidder_id": bidder_id,
+                "document_id": doc.id,
+                "filename": doc.filename,
+                "sha256": doc.sha256,
+                "target_url": f"/workspace/bidders/{bidder_id}#documents",
+                "message": f"Bidder document '{doc.filename}' verified and parsed",
+            },
+        )
+
         doc_type_val = doc.document_type.value if hasattr(doc.document_type, "value") else str(doc.document_type)
 
         ai_res = await ai_adapter.extract_document(
@@ -1134,6 +1215,26 @@ async def process_bidder_documents(
                 metadata_json=meta,
             )
             db.add(db_fact)
+            db.flush()
+            AuditLogger.create_entry(
+                db,
+                action="FACT_EXTRACTED",
+                entity_type="FACT",
+                entity_id=db_fact.id,
+                actor_id=principal.user_id,
+                actor_role=principal.role.value,
+                payload={
+                    "tender_id": bidder.tender_id,
+                    "bidder_id": bidder_id,
+                    "document_id": doc.id,
+                    "field": db_fact.field,
+                    "value": str(db_fact.value),
+                    "confidence": db_fact.confidence,
+                    "source_page": db_fact.source_page,
+                    "target_url": f"/workspace/bidders/{bidder_id}#documents",
+                    "message": f"Extracted fact: {db_fact.field} = {db_fact.value} (p. {db_fact.source_page or '?'})",
+                },
+            )
             existing_fact_keys.add(item_key)
 
         AuditLogger.log(
@@ -1146,10 +1247,15 @@ async def process_bidder_documents(
             payload={
                 "job_id": job.id,
                 "request_id": req_id,
+                "tender_id": bidder.tender_id,
                 "bidder_id": bidder_id,
+                "document_id": doc.id,
+                "filename": doc.filename,
                 "facts_count": len(ai_res.data),
                 "review_required": bool(ai_res.review_required),
                 "low_confidence_fields": list(ai_res.low_confidence_fields or []),
+                "target_url": f"/workspace/bidders/{bidder_id}#documents",
+                "message": f"Extracted {len(ai_res.data)} facts from '{doc.filename}'",
             },
         )
 
@@ -1179,6 +1285,25 @@ async def process_bidder_documents(
         job.error_message = f"Extraction failed for all {total_docs} documents."
         job.progress = 100
         job.completed_at = datetime.now(timezone.utc)
+
+    AuditLogger.log(
+        db,
+        action="BIDDER_PROCESSING_COMPLETED",
+        entity_type="BIDDER",
+        entity_id=bidder_id,
+        actor_id=principal.user_id,
+        actor_role=principal.role.value,
+        payload={
+            "job_id": job.id,
+            "tender_id": bidder.tender_id,
+            "bidder_id": bidder_id,
+            "successful_docs": successful_docs,
+            "total_docs": total_docs,
+            "status": job.status.value if hasattr(job.status, "value") else str(job.status),
+            "target_url": f"/workspace/bidders/{bidder_id}#documents",
+            "message": f"Document processing finished: {successful_docs}/{total_docs} documents processed ({job.status.value if hasattr(job.status, 'value') else str(job.status)})",
+        },
+    )
 
     db.commit()
     return job
