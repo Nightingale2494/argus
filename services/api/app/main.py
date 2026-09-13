@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 import os
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
@@ -28,7 +29,38 @@ logger = get_logger("argus.main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("ARGUS API backend initializing...")
+    worker_task = None
+    run_inline = getattr(settings, "ARGUS_RUN_INLINE_WORKER", False) or os.getenv("ARGUS_RUN_INLINE_WORKER", "false").lower() in ("true", "1", "yes")
+    if run_inline:
+        logger.info("ARGUS_RUN_INLINE_WORKER enabled: starting inline worker background task.")
+        from app.workers.worker import claim_job, execute_job
+
+        async def _inline_worker_loop():
+            while True:
+                try:
+                    claimed = claim_job()
+                    if claimed:
+                        await execute_job(*claimed)
+                    else:
+                        await asyncio.sleep(2.0)
+                except asyncio.CancelledError:
+                    break
+                except Exception as w_err:
+                    logger.warning("Inline worker error: %s", w_err)
+                    await asyncio.sleep(2.0)
+
+        worker_task = asyncio.create_task(_inline_worker_loop())
+
     yield
+
+    if worker_task:
+        logger.info("Stopping inline worker background task...")
+        worker_task.cancel()
+        try:
+            await worker_task
+        except asyncio.CancelledError:
+            pass
+
     logger.info("ARGUS API backend shutting down...")
 
 

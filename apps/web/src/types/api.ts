@@ -55,7 +55,12 @@ export type RiskSummaryRead = Schemas['RiskSummaryRead'];
 export type HumanDecisionCreate = Schemas['HumanDecisionCreate'];
 export type HumanDecisionRead = Schemas['HumanDecisionRead'];
 export type HumanDecisionStatus = Schemas['HumanDecisionStatus'];
-export type ReportRead = Schemas['ReportRead'];
+export type ReportRead = Schemas['ReportRead'] & {
+  snapshot_hash?: string | null;
+  hash_algorithm?: string | null;
+  canonicalization_version?: string | null;
+  snapshot_integrity_verified?: boolean | null;
+};
 
 // System Health & Providers
 export type ProviderHealthRead = Schemas['ProviderHealthRead'];

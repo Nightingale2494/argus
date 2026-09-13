@@ -27,6 +27,10 @@ class RiskSignalCandidate(BaseModel):
     source_mode: str | None = None
     metadata_json: dict[str, Any] = Field(default_factory=dict)
 
+    def model_post_init(self, __context: Any) -> None:
+        if "detection_method" not in self.metadata_json:
+            self.metadata_json["detection_method"] = "Deterministic Rule Heuristic"
+
     @property
     def input_ids(self) -> list[str]:
         """Returns flat list of IDs for backward compatibility."""

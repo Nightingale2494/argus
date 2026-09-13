@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Any
 import httpx
 from pydantic import ValidationError
 
@@ -168,3 +169,70 @@ class RAGServiceAdapter:
                 error_code="RAG_SERVICE_UNAVAILABLE",
                 error_message=f"Unexpected internal error: {exc}",
             )
+
+    async def ingest_document(
+        self,
+        document_id: str,
+        title: str,
+        document_uri: str,
+        document_type: str,
+        *,
+        tender_id: str | None = None,
+        source_uri: str | None = None,
+        clause: str | None = None,
+        security_level: str = "INTERNAL",
+    ) -> dict[str, Any]:
+        """Ingests a parsed document into the intelligence service RAG index."""
+        url = settings.ARGUS_INTELLIGENCE_RAG_INGEST_URL
+        if not url or not url.strip():
+            return {
+                "success": False,
+                "error_code": "RAG_SERVICE_UNAVAILABLE",
+                "message": "ARGUS RAG ingest URL is not configured.",
+                "chunks_indexed": 0,
+            }
+
+        headers: dict[str, str] = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "ARGUS-Procurement-Platform/1.0",
+        }
+        if settings.ARGUS_INTELLIGENCE_API_KEY:
+            headers["Authorization"] = f"Bearer {settings.ARGUS_INTELLIGENCE_API_KEY}"
+
+        payload = {
+            "document_id": document_id,
+            "title": title,
+            "document_uri": document_uri,
+            "document_type": document_type,
+            "source_uri": source_uri or document_uri,
+            "tender_id": tender_id,
+            "clause": clause,
+            "security_level": security_level,
+        }
+
+        timeout = httpx.Timeout(settings.ARGUS_INTELLIGENCE_READ_TIMEOUT_SECONDS)
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.post(url, headers=headers, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return {
+                        "success": True,
+                        "document_id": document_id,
+                        "chunks_indexed": data.get("chunks_indexed", 0),
+                    }
+                return {
+                    "success": False,
+                    "error_code": f"HTTP_{resp.status_code}",
+                    "message": resp.text[:200],
+                    "chunks_indexed": 0,
+                }
+        except Exception as exc:
+            return {
+                "success": False,
+                "error_code": "RAG_INGEST_FAILED",
+                "message": str(exc),
+                "chunks_indexed": 0,
+            }
+

@@ -59,8 +59,21 @@ def extract_document(file_path: Union[str, Path], *, document_id: str, bidder_id
     return _deduplicate_facts(facts)
 
 def _extract_csv_facts(path: Path, document_id: str, bidder_id: str) -> list[ExtractedFactDraft]:
-    """Table-aware baseline for CSV exports; spreadsheet/PDF tables need dedicated adapters."""
-    aliases = {"gstin": "tax.gstin", "pan": "identity.pan", "udyam": "registration.udyam", "turnover": "financial.average_annual_turnover", "experience_years": "experience.years", "expiry_date": "document.expiry_date"}
+    aliases = {
+        "gstin": "tax.gstin",
+        "gst": "tax.gstin",
+        "pan": "identity.pan",
+        "udyam": "registration.udyam",
+        "turnover": "financial.average_annual_turnover",
+        "annual_turnover": "financial.average_annual_turnover",
+        "experience_years": "experience.years",
+        "experience": "experience.years",
+        "expiry_date": "document.expiry_date",
+        "epfo": "labour.epfo_registration",
+        "esic": "labour.esic_registration",
+        "cin": "corporate.cin",
+        "blacklisted": "legal.blacklisted",
+    }
     extracted: list[ExtractedFactDraft] = []
     with path.open(encoding="utf-8", errors="replace", newline="") as handle:
         for row_number, row in enumerate(csv.DictReader(handle), 2):

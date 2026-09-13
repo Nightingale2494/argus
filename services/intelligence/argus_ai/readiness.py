@@ -25,7 +25,7 @@ def readiness() -> dict[str, Any]:
         "model": {"configured": provider != "disabled", "ready": model_ready, "provider": provider},
         "embeddings": {"configured": embedding_provider != "hash", "ready": embedding_ready, "provider": embedding_provider},
         "rag": {"configured": rag_database, "mode": "pgvector" if rag_database else "in_memory_demo"},
-        "ocr": {"ready": ocr_ready, "mode": "native_text_then_ocr"},
+        "ocr": {"ready": ocr_ready, "mode": "native_text_then_ocr", "engine": "pytesseract" if ocr_ready else "NOT CONFIGURED"},
         "document_resolution": {"mode": "local_file_or_https_signed_url", "raw_s3_requires_backend_storage_adapter": True},
     }
     ready = model_ready and embedding_ready and (not require_live or (rag_database and provider != "disabled"))

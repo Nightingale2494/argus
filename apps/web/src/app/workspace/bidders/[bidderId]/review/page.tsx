@@ -11,6 +11,7 @@ import { api } from "@/services/api";
 import { demoStore } from "@/services/demo-store";
 import { BidderRead, ComplianceMatrixRow, HumanDecisionCreate, HumanDecisionRead } from "@/services/types";
 import { SessionRequired } from "@/components/ui/SessionRequired";
+import { DeepAuditPanel } from "@/components/ui/DeepAuditPanel";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function HumanReviewPage() {
@@ -162,11 +163,13 @@ export default function HumanReviewPage() {
     );
   }
 
+  const querySuffix = isDemo ? '?mode=demo' : '';
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Back Link */}
       <div>
-        <Link href={`/workspace/bidders/${bidderId}`} className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 mb-4 transition-colors">
+        <Link href={`/workspace/bidders/${bidderId}${querySuffix}`} className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 mb-4 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to Bidder Evaluation
         </Link>
         <div className="flex items-center justify-between">
@@ -185,19 +188,19 @@ export default function HumanReviewPage() {
       {/* Bidder Sub-Navigation Tabs */}
       <div className="border-b border-zinc-800 flex gap-4 text-xs font-mono">
         <Link
-          href={`/workspace/bidders/${bidderId}/matrix`}
+          href={`/workspace/bidders/${bidderId}/matrix${querySuffix}`}
           className="pb-2.5 font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5"
         >
           Compliance Matrix
         </Link>
         <Link
-          href={`/workspace/bidders/${bidderId}/review`}
+          href={`/workspace/bidders/${bidderId}/review${querySuffix}`}
           className="pb-2.5 font-semibold border-b-2 border-amber-500 text-amber-400 flex items-center gap-1.5"
         >
           <CheckSquare className="w-3.5 h-3.5" /> Human Officer Review
         </Link>
         <Link
-          href={`/workspace/bidders/${bidderId}/report`}
+          href={`/workspace/bidders/${bidderId}/report${querySuffix}`}
           className="pb-2.5 font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5"
         >
           Audit Report
@@ -270,6 +273,13 @@ export default function HumanReviewPage() {
           </div>
         )}
       </div>
+
+      {/* Advisory Deep Audit Panel (LangGraph Autonomous Investigation) */}
+      <DeepAuditPanel
+        bidderId={bidderId}
+        bidderName={bidder?.bidder_name}
+        isDemo={isDemo}
+      />
 
       {/* Decision Submission Form */}
       <div className="p-6 rounded-xl bg-zinc-900/60 border border-zinc-800/80 space-y-4">

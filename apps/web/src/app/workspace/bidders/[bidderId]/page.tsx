@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { 
   Building2, ShieldCheck, CheckCircle, AlertTriangle, XCircle, 
-  Clock, ArrowLeft, RefreshCw, Sparkles, FileText, CheckSquare, Upload, AlertCircle
+  Clock, ArrowLeft, RefreshCw, Sparkles, FileText, CheckSquare, Upload, AlertCircle, Bot
 } from "lucide-react";
 import { api } from "@/services/api";
 import { demoStore, DemoBidderDocument } from "@/services/demo-store";
@@ -367,6 +367,13 @@ export default function BidderDetailPage() {
                 ? "Re-evaluate Compliance"
                 : "Evaluate Compliance"}
             </button>
+            <Link
+              href={`/workspace/bidders/${bidderId}/review`}
+              className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors shadow-sm shadow-indigo-950/30"
+            >
+              <Bot className="w-4 h-4" />
+              <span>Deep Audit</span>
+            </Link>
           </div>
         </div>
       </div>
@@ -533,9 +540,26 @@ export default function BidderDetailPage() {
                         </div>
                       </td>
                       <td className="px-5 py-3">
-                        <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-zinc-800 text-zinc-300 border border-zinc-700">
-                          {doc.document_type || 'FINANCIAL_STATEMENT'}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-zinc-800 text-zinc-300 border border-zinc-700">
+                            {doc.document_type || 'FINANCIAL_STATEMENT'}
+                          </span>
+                          {doc.is_scanned || (doc.metadata_json as Record<string, unknown> | undefined)?.is_scanned ? (
+                            doc.ocr_used || (doc.metadata_json as Record<string, unknown> | undefined)?.ocr_used ? (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                Scanned (pytesseract OCR)
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                Scanned (OCR Not Configured)
+                              </span>
+                            )
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-800/60 text-zinc-400 border border-zinc-700/40">
+                              Native Text Layer
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-3 text-xs text-zinc-400">{formattedSize}</td>
                       <td className="px-5 py-3">

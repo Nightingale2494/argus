@@ -194,6 +194,30 @@ export const JobProgressDrawer: React.FC<JobProgressDrawerProps> = ({
           </div>
         </div>
 
+        {/* Per-Document Progress Section */}
+        {(() => {
+          const docEvents = events.filter((ev) => {
+            const p = (ev as Record<string, unknown>).payload as Record<string, unknown> | undefined;
+            return Boolean(p?.document_id || p?.doc_filename || p?.filename || ev.message?.toLowerCase().includes('document') || ev.message?.toLowerCase().includes('.pdf'));
+          });
+          if (docEvents.length === 0) return null;
+          return (
+            <div className="px-5 py-3 border-b border-slate-800 bg-slate-950/20">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
+                Document Processing Activity ({docEvents.length})
+              </span>
+              <div className="space-y-1.5 max-h-28 overflow-y-auto">
+                {docEvents.slice(-3).map((dev, i) => (
+                  <div key={i} className="flex items-center justify-between text-[11px] bg-slate-900/60 p-2 rounded border border-slate-800/80">
+                    <span className="text-slate-300 truncate max-w-[320px]">{dev.message}</span>
+                    <span className="text-indigo-400 font-mono text-[10px]">{dev.stage}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Events / Live Terminal Log */}
         <div className="flex-1 overflow-y-auto p-5 space-y-2.5 font-mono text-xs">
           <div className="flex items-center gap-2 text-slate-500 pb-2 border-b border-slate-800/60">

@@ -38,5 +38,6 @@ services/api/candidate_openapi.json
 
 # Playwright
 test-results/
+scratch/
 playwright-report/
 

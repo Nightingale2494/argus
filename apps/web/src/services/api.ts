@@ -29,7 +29,14 @@ import type {
   TenderRequirementRead,
   VerificationResultRead,
 } from '@/types/api';
-import type { AuditEventCategory, AuditEventRead, RawAuditEvent } from '@/services/types';
+import type {
+  AuditEventCategory,
+  AuditEventRead,
+  DeepAuditStatusResponse,
+  RAGExplainRequest,
+  RAGExplainResponse,
+  RawAuditEvent,
+} from '@/services/types';
 import { demoStore } from './demo-store';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
@@ -303,6 +310,19 @@ export const apiClient = {
     return res.rows || [];
   },
 
+  async triggerDeepAudit(bidderId: string): Promise<{ job_id: string; status: string; message: string }> {
+    return request<{ job_id: string; status: string; message: string }>(
+      `/api/v1/bidders/${encodeURIComponent(bidderId)}/deep-audit`,
+      { method: 'POST' }
+    );
+  },
+
+  async getLatestDeepAudit(bidderId: string): Promise<DeepAuditStatusResponse> {
+    return request<DeepAuditStatusResponse>(
+      `/api/v1/bidders/${encodeURIComponent(bidderId)}/deep-audit/latest`
+    );
+  },
+
   async submitHumanDecision(bidderId: string, data: HumanDecisionCreate): Promise<HumanDecisionRead> {
     return request<HumanDecisionRead>(`/api/v1/bidders/${encodeURIComponent(bidderId)}/decision`, {
       method: 'POST',
@@ -343,6 +363,13 @@ export const apiClient = {
   // RAG & Audit
   async queryRAG(data: RAGQueryRequest): Promise<RAGQueryResponse> {
     return request<RAGQueryResponse>('/api/v1/rag/query', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async explainRAG(data: RAGExplainRequest): Promise<RAGExplainResponse> {
+    return request<RAGExplainResponse>('/api/v1/rag/explain', {
       method: 'POST',
       body: JSON.stringify(data),
     });

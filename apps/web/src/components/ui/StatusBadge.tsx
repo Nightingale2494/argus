@@ -77,9 +77,24 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     );
   }
 
+  if (normalized.includes('EXEMPT') || normalized === 'NOT_APPLICABLE_EXEMPTION') {
+    return (
+      <span
+        title="Statutory Exemption Applied (GFR 153 / MSME / Startup)"
+        className={`inline-flex items-center font-mono font-semibold rounded-md bg-purple-950/60 border border-purple-800/80 text-purple-300 shadow-sm ${sizeClasses}`}
+      >
+        {showIcon && <CheckCircle2 className={iconSizes} />}
+        <span>EXEMPTION</span>
+      </span>
+    );
+  }
+
   if (normalized === 'NOT_APPLICABLE' || normalized === 'NA') {
     return (
-      <span className={`inline-flex items-center font-mono font-semibold rounded-md bg-slate-900 border border-slate-700 text-slate-400 shadow-sm ${sizeClasses}`}>
+      <span
+        title="Not Applicable"
+        className={`inline-flex items-center font-mono font-semibold rounded-md bg-slate-900 border border-slate-700 text-slate-400 shadow-sm ${sizeClasses}`}
+      >
         {showIcon && <MinusCircle className={iconSizes} />}
         <span>N/A</span>
       </span>

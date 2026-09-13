@@ -191,6 +191,14 @@ class JobStage(str, Enum):
     COMPLIANCE = "COMPLIANCE"
     RISK_ANALYSIS = "RISK_ANALYSIS"
     REPORTING = "REPORTING"
+    # Deep Audit Agent Stages
+    DEEP_AUDIT = "DEEP_AUDIT"
+    LOAD_CONTEXT = "LOAD_CONTEXT"
+    RETRIEVE_POLICY = "RETRIEVE_POLICY"
+    COLLECT_EVIDENCE = "COLLECT_EVIDENCE"
+    ANALYZE_CONFLICTS = "ANALYZE_CONFLICTS"
+    GENERATE_EXPLANATION = "GENERATE_EXPLANATION"
+    HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
 
 
 # ---------------------------------------------------------------------------
@@ -402,6 +410,7 @@ class RuleEvaluationRead(BaseModel):
     observed_value: Any | None = None
     expected_value: Any | None = None
     evidence_ids: list[str] = Field(default_factory=list)
+    advisory_rag_context_ids: list[str] = Field(default_factory=list)
     rule_version: str = "1.0"
     evaluated_at: datetime | None = None
 
@@ -599,6 +608,7 @@ class ComplianceMatrixRow(BaseModel):
     evidence_refs: list[dict[str, Any]] = Field(default_factory=list)
     verification_refs: list[dict[str, Any]] = Field(default_factory=list)
     source_refs: list[dict[str, Any]] = Field(default_factory=list)
+    advisory_rag_contexts: list[dict[str, Any]] = Field(default_factory=list)
     review_required: bool = False
 
 
@@ -634,6 +644,10 @@ class ReportRead(BaseModel):
     human_decision: HumanDecisionRead | None = None
     historical_limitations_notice: str | None = None
     audit_trail_count: int = 0
+    snapshot_hash: str | None = None
+    hash_algorithm: str | None = None
+    canonicalization_version: str | None = None
+    snapshot_integrity_verified: bool | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -707,6 +721,25 @@ class RAGQueryRequest(BaseModel):
 class RAGQueryResponse(BaseModel):
     query: str
     results: list[EvidenceRead] = Field(default_factory=list)
+    retrieved_at: datetime
+    error_code: str | None = None
+    error_message: str | None = None
+
+
+class RAGExplainRequest(BaseModel):
+    query: str
+    tender_id: str | None = None
+    clause: str | None = None
+    field: str | None = None
+    top_k: int = 5
+
+
+class RAGExplainResponse(BaseModel):
+    query: str
+    explanation: str
+    citations: list[EvidenceRead] = Field(default_factory=list)
+    is_advisory: bool = True
+    advisory_disclaimer: str = "This explanation is purely advisory context generated from retrieved policy clauses. It does NOT decide qualification or override deterministic compliance rules."
     retrieved_at: datetime
     error_code: str | None = None
     error_message: str | None = None

@@ -10,6 +10,7 @@ import type {
   IntegrationsHealthResponse,
   JobStage,
   JobStatus,
+  EvidenceRead,
 } from '@/types/api';
 
 export type RequirementRead = TenderRequirementRead;
@@ -78,5 +79,61 @@ export interface AuditEventRead {
   requirement_id?: string | null;
   clause_reference?: string | null;
   payload_json?: Record<string, unknown> | null;
+}
+
+export interface RAGExplainRequest {
+  query: string;
+  tender_id?: string | null;
+  clause?: string | null;
+  field?: string | null;
+  top_k?: number;
+}
+
+export interface RAGExplainResponse {
+  query: string;
+  explanation: string;
+  citations: EvidenceRead[];
+  is_advisory: boolean;
+  advisory_disclaimer: string;
+  retrieved_at: string;
+  error_code?: string | null;
+  error_message?: string | null;
+}
+
+export interface DeepAuditConflict {
+  clause_reference: string;
+  conflict_type: string;
+  description: string;
+  severity: 'CRITICAL' | 'WARNING' | 'ADVISORY' | string;
+}
+
+export interface DeepAuditPrecedent {
+  clause_reference: string;
+  precedent_id: string;
+  source: string;
+  similarity_score?: number;
+  ruling_summary: string;
+}
+
+export interface DeepAuditSynthesis {
+  summary: string;
+  conflicts_detected: DeepAuditConflict[];
+  policy_precedents: DeepAuditPrecedent[];
+  evidence_synthesis: string;
+  recommended_human_inquiries: string[];
+  disclaimer: string;
+  is_advisory: boolean;
+  langgraph_trace?: string[];
+  langgraph_interrupted?: boolean;
+  langgraph_reasons?: string[];
+}
+
+export interface DeepAuditStatusResponse {
+  status: 'NOT_STARTED' | 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | string;
+  stage?: string | null;
+  progress?: number;
+  job_id?: string | null;
+  completed_at?: string | null;
+  synthesis?: DeepAuditSynthesis | null;
 }
 

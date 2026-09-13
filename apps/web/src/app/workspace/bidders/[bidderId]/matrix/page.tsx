@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { 
   FileText, CheckCircle, AlertTriangle, XCircle, ArrowLeft, 
-  RefreshCw, Filter, Eye, AlertCircle
+  RefreshCw, Filter, Eye, AlertCircle, ShieldCheck
 } from "lucide-react";
 import { api } from "@/services/api";
 import { demoStore } from "@/services/demo-store";
@@ -97,15 +97,30 @@ export default function ComplianceMatrixPage() {
     return true;
   });
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, reasonCode?: string | null) => {
     switch (status) {
       case "PASS":
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><CheckCircle className="w-3 h-3" /> PASS</span>;
       case "FAIL":
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20"><XCircle className="w-3 h-3" /> FAIL</span>;
+      case "NOT_APPLICABLE_EXEMPTION":
+      case "EXEMPTION":
+      case "EXEMPT":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20" title={reasonCode || "Statutory Exemption Applied"}>
+            <ShieldCheck className="w-3 h-3" /> EXEMPTION APPLIED
+          </span>
+        );
       case "REVIEW_REQUIRED":
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20"><AlertTriangle className="w-3 h-3" /> REVIEW</span>;
       default:
+        if (status.includes("EXEMPT")) {
+          return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20" title={reasonCode || "Statutory Exemption Applied"}>
+              <ShieldCheck className="w-3 h-3" /> EXEMPTION APPLIED
+            </span>
+          );
+        }
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">{status}</span>;
     }
   };
@@ -130,11 +145,13 @@ export default function ComplianceMatrixPage() {
     );
   }
 
+  const querySuffix = isDemo ? '?mode=demo' : '';
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <Link href={`/workspace/bidders/${bidderId}`} className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 mb-4 transition-colors">
+        <Link href={`/workspace/bidders/${bidderId}${querySuffix}`} className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 mb-4 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to Bidder Evaluation
         </Link>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -159,19 +176,19 @@ export default function ComplianceMatrixPage() {
       {/* Bidder Sub-Navigation Tabs */}
       <div className="border-b border-zinc-800 flex gap-4 text-xs font-mono">
         <Link
-          href={`/workspace/bidders/${bidderId}/matrix`}
+          href={`/workspace/bidders/${bidderId}/matrix${querySuffix}`}
           className="pb-2.5 font-semibold border-b-2 border-blue-500 text-blue-400 flex items-center gap-1.5"
         >
           <FileText className="w-3.5 h-3.5" /> Compliance Matrix
         </Link>
         <Link
-          href={`/workspace/bidders/${bidderId}/review`}
+          href={`/workspace/bidders/${bidderId}/review${querySuffix}`}
           className="pb-2.5 font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5"
         >
           Human Officer Review
         </Link>
         <Link
-          href={`/workspace/bidders/${bidderId}/report`}
+          href={`/workspace/bidders/${bidderId}/report${querySuffix}`}
           className="pb-2.5 font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5"
         >
           Audit Report
@@ -282,10 +299,17 @@ export default function ComplianceMatrixPage() {
                       {row.observed_value !== null && row.observed_value !== undefined ? String(row.observed_value) : "—"}
                     </td>
                     <td className="px-5 py-3.5">
-                      {getStatusBadge(row.status)}
+                      {getStatusBadge(row.status, row.reason_code)}
                     </td>
-                    <td className="px-5 py-3.5 text-xs text-zinc-400 max-w-xs truncate">
-                      {row.reason_code || (row.review_required ? "Officer Review Required" : "Evaluated successfully")}
+                    <td className="px-5 py-3.5 text-xs text-zinc-400 max-w-xs">
+                      {(row.status as string) === "NOT_APPLICABLE_EXEMPTION" || (row.status as string).includes("EXEMPT") ? (
+                        <div className="space-y-0.5">
+                          <span className="font-semibold text-purple-300 block text-[11px]">Exemption Rationale</span>
+                          <span className="text-zinc-300 text-[11px] truncate block">{row.reason_code || "Clause Exemption / Not Applicable"}</span>
+                        </div>
+                      ) : (
+                        <span className="truncate block">{row.reason_code || (row.review_required ? "Officer Review Required" : "Evaluated successfully")}</span>
+                      )}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <button

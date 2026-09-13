@@ -21,7 +21,7 @@ import type {
   DocumentRead,
   FactRead,
 } from '@/types/api';
-import type { AuditEventRead } from '@/services/types';
+import type { AuditEventRead, DeepAuditSynthesis } from '@/services/types';
 import { parsePdfText, extractBidderFacts, inferDocumentType, computeSha256 } from './pdf-parser';
 
 export interface DemoAttachedFile {
@@ -39,6 +39,9 @@ export interface DemoBidderDocument extends DocumentRead {
   status?: 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
   facts_count?: number;
   extracted_facts?: FactRead[];
+  is_scanned?: boolean;
+  ocr_used?: boolean;
+  ocr_engine?: string;
   mismatches?: Array<{
     field: string;
     existing_value: string;
@@ -71,6 +74,7 @@ export interface DemoState {
   bidderDocuments?: Record<string, DemoBidderDocument[]>; // bidder_id -> documents
   extractedFacts?: Record<string, FactRead[]>; // bidder_id -> facts
   complianceStale?: Record<string, boolean>; // bidder_id -> stale flag
+  deepAuditSyntheses?: Record<string, DeepAuditSynthesis>; // bidder_id -> synthesis
 }
 
 const DEMO_STORAGE_KEY = 'argus_demo_store_v1';
@@ -587,6 +591,35 @@ const DEFAULT_DEMO_STATE: DemoState = {
     bidder_crest_02: 'DISQUALIFIED',
     bidder_bharat_03: 'PENDING',
   },
+  deepAuditSyntheses: {
+    bidder_alpha_01: {
+      summary: "Autonomous advisory audit completed for Acme Systems. Identified 1 high-priority conflict regarding turnover reconciliation and 1 valid statutory exemption applicable under GFR Rule 153.",
+      conflicts_detected: [
+        {
+          clause_reference: "Clause 3.1 vs Clause 4.2",
+          conflict_type: "TURNOVER_THRESHOLD_AMBIGUITY",
+          description: "General tender financial requirement mandates ₹5.0 Cr turnover, but Clause 4.2 grants MSE exemption for Udyam-registered micro-enterprises.",
+          severity: "WARNING",
+        },
+      ],
+      policy_precedents: [
+        {
+          clause_reference: "GFR Rule 153 (MSME Public Procurement Policy)",
+          precedent_id: "OM-F.1/4/2021-PPD",
+          source: "Ministry of Finance, Procurement Policy Division",
+          similarity_score: 0.94,
+          ruling_summary: "Procuring entities may not reject MSE bidders meeting technical parameters solely on failure of minimum turnover thresholds.",
+        },
+      ],
+      evidence_synthesis: "Bidder submitted valid Udyam Registration (UDYAM-MH-02-0049281) and CA turnover certificate. Deterministic statutory verification confirmed active GSTIN status. Exemption is verified and eligible for officer sign-off.",
+      recommended_human_inquiries: [
+        "Confirm whether bidder qualifies under Micro or Small category on the National Udyam Portal.",
+        "Verify that manufacturing/service provision domain matches Tender Item Classification Schedule.",
+      ],
+      disclaimer: "Advisory Analysis: Deep Audit provides investigation assistance. Final qualification decisions remain solely with the human procurement officer.",
+      is_advisory: true,
+    },
+  },
   auditEvents: [
     {
       id: 'evt_01',
@@ -727,6 +760,7 @@ function loadFromStorage(): DemoState {
       bidderDocuments: parsed.bidderDocuments && typeof parsed.bidderDocuments === 'object' ? parsed.bidderDocuments : {},
       extractedFacts: parsed.extractedFacts && typeof parsed.extractedFacts === 'object' ? parsed.extractedFacts : {},
       complianceStale: parsed.complianceStale && typeof parsed.complianceStale === 'object' ? parsed.complianceStale : {},
+      deepAuditSyntheses: parsed.deepAuditSyntheses && typeof parsed.deepAuditSyntheses === 'object' ? parsed.deepAuditSyntheses : DEFAULT_DEMO_STATE.deepAuditSyntheses,
     };
   } catch {
     return getDefaultState();
@@ -2250,6 +2284,40 @@ export const demoStore = {
         officer_decision: decision,
         status: decision,
         target_url: `/workspace/bidders/${bidderId}/review?mode=demo`,
+      },
+    };
+    state.auditEvents = [evt, ...state.auditEvents];
+
+    saveToStorage(state);
+  },
+
+  recordDeepAuditSynthesis(bidderId: string, synthesis: DeepAuditSynthesis): void {
+    const state = loadFromStorage();
+    if (!state.deepAuditSyntheses) state.deepAuditSyntheses = {};
+    state.deepAuditSyntheses[bidderId] = synthesis;
+
+    // Strict Authority Invariant: Advisory investigation NEVER mutates bidder status!
+    const evt: AuditEventRead = {
+      id: `evt_${Date.now()}_deep_audit`,
+      job_id: `job_deep_audit_${bidderId}`,
+      stage: 'DEEP_AUDIT',
+      status: 'COMPLETED',
+      progress: 100,
+      action: 'DEEP_AUDIT_COMPLETED',
+      entity_type: 'BIDDER',
+      entity_id: bidderId,
+      mode: 'DEMO',
+      source: 'DEMO_STORE / SYNTHETIC',
+      bidder_id: bidderId,
+      target_url: `/workspace/bidders/${bidderId}/review?mode=demo`,
+      message: `Autonomous advisory Deep Audit completed for bidder (${synthesis.conflicts_detected.length} conflicts analyzed).`,
+      timestamp: new Date().toISOString(),
+      payload_json: {
+        bidder_id: bidderId,
+        is_advisory: true,
+        conflicts_count: synthesis.conflicts_detected.length,
+        precedents_count: synthesis.policy_precedents.length,
+        summary: synthesis.summary,
       },
     };
     state.auditEvents = [evt, ...state.auditEvents];

@@ -13,6 +13,7 @@ import { TenderRead, BidderRead, TenderRequirementRead } from "@/services/types"
 import { RequirementAddModal } from "@/components/ui/RequirementAddModal";
 import { JobProgressDrawer } from "@/components/ui/JobProgressDrawer";
 import { SessionRequired } from "@/components/ui/SessionRequired";
+import { ClauseIntelligencePanel } from "@/components/ui/ClauseIntelligencePanel";
 import { useAuth } from "@/hooks/useAuth";
 
 function deduplicateRequirements(reqs: TenderRequirementRead[]): TenderRequirementRead[] {
@@ -53,7 +54,7 @@ export default function TenderDetailPage() {
   const [tender, setTender] = useState<TenderRead | null>(null);
   const [bidders, setBidders] = useState<BidderRead[]>([]);
   const [requirements, setRequirements] = useState<TenderRequirementRead[]>([]);
-  const [activeTab, setActiveTab] = useState<"bidders" | "requirements">("bidders");
+  const [activeTab, setActiveTab] = useState<"bidders" | "requirements" | "intelligence">("bidders");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -407,6 +408,17 @@ export default function TenderDetailPage() {
           <FileText className="w-4 h-4" />
           Evaluation Criteria ({requirements.length})
         </button>
+        <button
+          onClick={() => setActiveTab("intelligence")}
+          className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === "intelligence"
+              ? "border-purple-500 text-purple-400"
+              : "border-transparent text-zinc-400 hover:text-zinc-200"
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-purple-400" />
+          Policy & Clause Intelligence (RAG)
+        </button>
       </div>
 
       {/* Tab Content: Bidders */}
@@ -529,6 +541,11 @@ export default function TenderDetailPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Tab Content: Policy & Clause Intelligence */}
+      {activeTab === "intelligence" && (
+        <ClauseIntelligencePanel tenderId={id} isDemo={isDemo} />
       )}
 
       {/* Add Bidder Modal */}

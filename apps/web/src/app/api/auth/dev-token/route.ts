@@ -100,8 +100,6 @@ const DEMO_CREDENTIALS = {
   password: 'ArgusDemo2026!',
 } as const;
 
-const FALLBACK_JWT_SECRET = 'argus-demo-development-jwt-secret-min-32-chars';
-
 function isVercelEnvironment(): boolean {
   return Boolean(
     process.env.VERCEL ||
@@ -127,6 +125,18 @@ function resolveAllowedRoles(isVercel: boolean): SupportedRole[] {
 }
 
 export async function POST(request: Request) {
+  // ---- Gate 0: ARGUS_AUTH_MODE (fail closed in OIDC / enterprise mode) -----
+  const authMode = (process.env.ARGUS_AUTH_MODE || 'hackathon').trim().toLowerCase();
+  if (authMode === 'oidc' || authMode === 'enterprise') {
+    return json(
+      {
+        error:
+          'Development credentials disabled: ARGUS is configured in strict enterprise OIDC mode. Use your identity provider to authenticate.',
+      },
+      403
+    );
+  }
+
   const isVercel = isVercelEnvironment();
   const devAuthOptIn = isTruthyFlag(process.env.ARGUS_ENABLE_DEV_AUTH);
 
@@ -163,15 +173,12 @@ export async function POST(request: Request) {
     );
   }
 
-  // ---- Gate 5: signing material (with fallback for demo deployments) --------
-  const secret =
-    process.env.ARGUS_JWT_SECRET && process.env.ARGUS_JWT_SECRET.trim().length >= 32
-      ? process.env.ARGUS_JWT_SECRET.trim()
-      : (allowDemoCreds ? FALLBACK_JWT_SECRET : undefined);
+  // ---- Gate 5: signing material (strictly fails closed without server secret) ----
+  const secret = process.env.ARGUS_JWT_SECRET?.trim();
 
-  if (!secret || secret.trim().length < 32) {
+  if (!secret || secret.length < 32) {
     return json(
-      { error: 'ARGUS_JWT_SECRET is missing or shorter than 32 characters.' },
+      { error: 'ARGUS_JWT_SECRET is missing or shorter than 32 characters in the server environment.' },
       503
     );
   }

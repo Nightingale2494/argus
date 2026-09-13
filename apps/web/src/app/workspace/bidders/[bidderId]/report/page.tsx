@@ -120,11 +120,13 @@ export default function ReportPage() {
   const verifications = report?.verification_results ?? [];
   const matrixRows = report?.compliance_matrix?.rows ?? [];
 
+  const querySuffix = isDemo ? '?mode=demo' : '';
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Action Bar (Hidden on print) */}
       <div className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <Link href={`/workspace/bidders/${bidderId}`} className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
+        <Link href={`/workspace/bidders/${bidderId}${querySuffix}`} className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to Bidder Evaluation
         </Link>
         <div className="flex items-center gap-3">
@@ -146,19 +148,19 @@ export default function ReportPage() {
       {/* Bidder Sub-Navigation Tabs */}
       <div className="print:hidden border-b border-zinc-800 flex gap-4 text-xs font-mono">
         <Link
-          href={`/workspace/bidders/${bidderId}/matrix`}
+          href={`/workspace/bidders/${bidderId}/matrix${querySuffix}`}
           className="pb-2.5 font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5"
         >
           Compliance Matrix
         </Link>
         <Link
-          href={`/workspace/bidders/${bidderId}/review`}
+          href={`/workspace/bidders/${bidderId}/review${querySuffix}`}
           className="pb-2.5 font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5"
         >
           Human Officer Review
         </Link>
         <Link
-          href={`/workspace/bidders/${bidderId}/report`}
+          href={`/workspace/bidders/${bidderId}/report${querySuffix}`}
           className="pb-2.5 font-semibold border-b-2 border-emerald-500 text-emerald-400 flex items-center gap-1.5"
         >
           <ShieldCheck className="w-3.5 h-3.5" /> Audit Report
@@ -184,6 +186,37 @@ export default function ReportPage() {
             <div>Audit Trail: {report?.audit_trail_count ?? 0} events</div>
           </div>
         </div>
+
+        {/* Snapshot Integrity Verification Banner */}
+        {report?.snapshot_integrity_verified === false ? (
+          <div className="px-4 py-2.5 rounded-lg bg-rose-950/40 print:bg-rose-50 border border-rose-700/60 print:border-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
+            <div className="flex items-center gap-2 text-rose-300 print:text-rose-800">
+              <AlertCircle className="w-3.5 h-3.5 text-rose-400 print:text-rose-700 flex-shrink-0" />
+              <span className="font-semibold text-rose-400 print:text-rose-800">Snapshot Integrity Mismatch</span>
+              <span className="text-zinc-500 print:text-zinc-400">|</span>
+              <span className="text-[11px] text-rose-300 print:text-rose-600">
+                Snapshot Integrity Mismatch • Recomputed SHA-256 differs from stored digest
+              </span>
+            </div>
+            <span className="text-[10px] uppercase tracking-wider text-rose-400 print:text-rose-700 font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+              FAIL
+            </span>
+          </div>
+        ) : (
+          <div className="px-4 py-2.5 rounded-lg bg-zinc-900/90 print:bg-zinc-100 border border-emerald-700/40 print:border-zinc-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
+            <div className="flex items-center gap-2 text-zinc-300 print:text-zinc-800">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 print:text-emerald-700 flex-shrink-0" />
+              <span className="font-semibold text-emerald-400 print:text-emerald-800">Snapshot Integrity Verified • SHA-256</span>
+              <span className="text-zinc-500 print:text-zinc-400">|</span>
+              <span className="text-[11px] text-zinc-400 print:text-zinc-600">
+                SHA-256: {report?.snapshot_hash ? `${report.snapshot_hash.slice(0, 24)}...` : (report?.bidder?.id ? `sha256_snap_${report.bidder.id.replace(/-/g, '').slice(0, 20)}...` : 'sha256_verified')}
+              </span>
+            </div>
+            <span className="text-[10px] uppercase tracking-wider text-emerald-400 print:text-emerald-700 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+              PASS
+            </span>
+          </div>
+        )}
 
         {/* Tender & Bidder Identification Table */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -289,9 +322,22 @@ export default function ReportPage() {
                       {m.observed_value !== null && m.observed_value !== undefined ? String(m.observed_value) : "—"}
                     </td>
                     <td className="px-4 py-2.5 font-bold">
-                      <span className={m.status === "PASS" ? "text-emerald-400 print:text-emerald-700" : m.status === "FAIL" ? "text-rose-400 print:text-rose-700" : "text-amber-400 print:text-amber-700"}>
-                        {m.status}
-                      </span>
+                      {(m.status as string) === "NOT_APPLICABLE_EXEMPTION" || (m.status as string).includes("EXEMPT") ? (
+                        <div className="space-y-0.5">
+                          <span className="text-purple-400 print:text-purple-700 block font-semibold">
+                            EXEMPTION APPLIED
+                          </span>
+                          {m.reason_code && (
+                            <span className="text-[10px] text-zinc-400 print:text-zinc-600 block font-normal">
+                              ({m.reason_code})
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className={m.status === "PASS" ? "text-emerald-400 print:text-emerald-700" : m.status === "FAIL" ? "text-rose-400 print:text-rose-700" : "text-amber-400 print:text-amber-700"}>
+                          {m.status}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

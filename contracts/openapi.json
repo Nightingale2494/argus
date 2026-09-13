@@ -1246,6 +1246,98 @@
         }
       }
     },
+    "/api/v1/bidders/{id}/deep-audit": {
+      "post": {
+        "tags": [
+          "Bidders"
+        ],
+        "summary": "Trigger Deep Audit",
+        "description": "Enqueues an autonomous advisory Deep Audit investigation for a bidder.\n\nReturns HTTP 202 with job_id and status=QUEUED.\nStrict Invariant:\n- Advisory output only.\n- Never mutates RuleEvaluation.status or Bidder.status.",
+        "operationId": "trigger_deep_audit_api_v1_bidders__id__deep_audit_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bidders/{id}/deep-audit/latest": {
+      "get": {
+        "tags": [
+          "Bidders"
+        ],
+        "summary": "Get Latest Deep Audit",
+        "description": "Retrieves the latest advisory Deep Audit synthesis for a bidder.",
+        "operationId": "get_latest_deep_audit_api_v1_bidders__id__deep_audit_latest_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/documents/{document_id}": {
       "get": {
         "tags": [
@@ -1519,6 +1611,53 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RAGQueryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/rag/explain": {
+      "post": {
+        "tags": [
+          "RAG Evidence Retrieval"
+        ],
+        "summary": "Explain Policy Or Clause",
+        "description": "Provides advisory policy explanation and clause intelligence for procurement officers.\n\nStrict Invariant:\n- This endpoint is purely advisory.\n- Does NOT mutate any compliance state, bidder status, or qualification outcome.\n- All citations are scoped strictly to the specified tender_id or public policy documents.",
+        "operationId": "explain_policy_or_clause_api_v1_rag_explain_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RAGExplainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RAGExplainResponse"
                 }
               }
             }
@@ -2179,6 +2318,14 @@
             },
             "type": "array",
             "title": "Source Refs"
+          },
+          "advisory_rag_contexts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Advisory Rag Contexts"
           },
           "review_required": {
             "type": "boolean",
@@ -3223,7 +3370,14 @@
           "VERIFICATION",
           "COMPLIANCE",
           "RISK_ANALYSIS",
-          "REPORTING"
+          "REPORTING",
+          "DEEP_AUDIT",
+          "LOAD_CONTEXT",
+          "RETRIEVE_POLICY",
+          "COLLECT_EVIDENCE",
+          "ANALYZE_CONFLICTS",
+          "GENERATE_EXPLANATION",
+          "HUMAN_REVIEW_REQUIRED"
         ],
         "title": "JobStage",
         "description": "Processing workflow stages."
@@ -3344,6 +3498,120 @@
           "UNKNOWN"
         ],
         "title": "ProviderOperationalHealth"
+      },
+      "RAGExplainRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "tender_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tender Id"
+          },
+          "clause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clause"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "top_k": {
+            "type": "integer",
+            "title": "Top K",
+            "default": 5
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "RAGExplainRequest"
+      },
+      "RAGExplainResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRead"
+            },
+            "type": "array",
+            "title": "Citations"
+          },
+          "is_advisory": {
+            "type": "boolean",
+            "title": "Is Advisory",
+            "default": true
+          },
+          "advisory_disclaimer": {
+            "type": "string",
+            "title": "Advisory Disclaimer",
+            "default": "This explanation is purely advisory context generated from retrieved policy clauses. It does NOT decide qualification or override deterministic compliance rules."
+          },
+          "retrieved_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Retrieved At"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "explanation",
+          "retrieved_at"
+        ],
+        "title": "RAGExplainResponse"
       },
       "RAGQueryRequest": {
         "properties": {
@@ -3509,6 +3777,50 @@
             "type": "integer",
             "title": "Audit Trail Count",
             "default": 0
+          },
+          "snapshot_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Hash"
+          },
+          "hash_algorithm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hash Algorithm"
+          },
+          "canonicalization_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonicalization Version"
+          },
+          "snapshot_integrity_verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Integrity Verified"
           }
         },
         "type": "object",
@@ -3785,6 +4097,13 @@
             },
             "type": "array",
             "title": "Evidence Ids"
+          },
+          "advisory_rag_context_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Advisory Rag Context Ids"
           },
           "rule_version": {
             "type": "string",

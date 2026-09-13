@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 import hashlib
 from typing import Any
 import uuid
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Response, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.audit.logger import AuditLogger
@@ -58,12 +58,15 @@ from app.schemas.canonical import (
     VerificationResultRead,
 )
 from app.services.ai_adapter import AIServiceAdapter
+from app.services.rag_adapter import RAGServiceAdapter
+from app.compliance.canonical_fields import resolve_canonical_field
 from app.services.bid_verification_service import BidVerificationService
 from app.services.document_service import DocumentService
 from app.storage.factory import get_storage_provider
 
 router = APIRouter(tags=["Bidders"])
 ai_adapter = AIServiceAdapter()
+rag_adapter = RAGServiceAdapter()
 
 
 @router.post("/tenders/{tender_id}/bidders", response_model=BidderRead, status_code=status.HTTP_201_CREATED)
@@ -940,6 +943,38 @@ async def get_bidder_report(
         },
     )
 
+    # Recompute and verify deterministic snapshot integrity
+    import json
+
+    snapshot_hash: str | None = None
+    hash_algorithm: str | None = None
+    canonicalization_version: str | None = None
+    snapshot_integrity_verified: bool | None = None
+
+    if target_run and target_run.input_snapshot_json:
+        summary_data = target_run.summary_json if isinstance(target_run.summary_json, dict) else {}
+
+        stored_hash = summary_data.get("snapshot_hash")
+        hash_algorithm = summary_data.get("hash_algorithm", "SHA-256")
+        canonicalization_version = summary_data.get("canonicalization_version", "1.0")
+
+        try:
+            canonical_bytes = json.dumps(
+                target_run.input_snapshot_json,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+            ).encode("utf-8")
+            recomputed_hash = hashlib.sha256(canonical_bytes).hexdigest()
+            if stored_hash:
+                snapshot_hash = stored_hash
+                snapshot_integrity_verified = (recomputed_hash == stored_hash)
+            else:
+                snapshot_hash = recomputed_hash
+                snapshot_integrity_verified = True
+        except Exception:
+            snapshot_integrity_verified = False
+
     return ReportRead(
         generated_at=datetime.now(timezone.utc),
         tender=tender,
@@ -952,6 +987,10 @@ async def get_bidder_report(
         human_decision=latest_decision_schema,
         historical_limitations_notice=notice,
         audit_trail_count=audit_count,
+        snapshot_hash=snapshot_hash,
+        hash_algorithm=hash_algorithm,
+        canonicalization_version=canonicalization_version,
+        snapshot_integrity_verified=snapshot_integrity_verified,
     )
 
 
@@ -1180,26 +1219,69 @@ async def process_bidder_documents(
             continue
 
         successful_docs += 1
+
+        # Index bidder document into RAG for policy and clause intelligence
+        try:
+            rag_ingest_res = await rag_adapter.ingest_document(
+                document_id=doc.id,
+                title=doc.filename,
+                document_uri=doc.storage_uri,
+                document_type=doc_type_val,
+                tender_id=bidder.tender_id,
+                source_uri=doc.storage_uri,
+            )
+            if rag_ingest_res.get("success"):
+                AuditLogger.log(
+                    db,
+                    action="RAG_DOCUMENT_INGESTED",
+                    entity_type="DOCUMENT",
+                    entity_id=doc.id,
+                    actor_id=principal.user_id,
+                    actor_role=principal.role.value,
+                    payload={
+                        "tender_id": bidder.tender_id,
+                        "bidder_id": bidder_id,
+                        "document_id": doc.id,
+                        "chunks_indexed": rag_ingest_res.get("chunks_indexed", 0),
+                        "message": f"Bidder document '{doc.filename}' indexed for clause intelligence retrieval",
+                    },
+                )
+        except Exception:
+            pass  # Non-blocking advisory ingestion
+
         for lc_field in (ai_res.low_confidence_fields or []):
             if lc_field not in low_confidence_fields:
                 low_confidence_fields.append(lc_field)
 
-        # Non-destructive reprocessing: preserve ALL existing facts, non-destructive deduplication for new facts
+        # Semantic fact deduplication: preserve ALL existing facts, deduplicate by (canonical_field, normalized_val) per document
         def _norm_fact_val(v: Any) -> str:
             if isinstance(v, (int, float)) and not isinstance(v, bool):
                 return str(float(v))
+            if isinstance(v, str):
+                return v.strip().lower()
             return str(v)
 
         existing_facts = db.query(ExtractedFact).filter(ExtractedFact.document_id == doc.id).all()
-        existing_fact_keys = {
-            (f.field, _norm_fact_val(f.value), f.source_page, f.source_text or "")
+        existing_semantic_map = {
+            (resolve_canonical_field(f.field), _norm_fact_val(f.value)): f
             for f in existing_facts
         }
 
         for item in ai_res.data:
             fact_obj = ExtractedFactCreate.model_validate(item)
-            item_key = (fact_obj.field, _norm_fact_val(fact_obj.value), fact_obj.source_page, fact_obj.source_text or "")
-            if item_key in existing_fact_keys:
+            canonical_key = resolve_canonical_field(fact_obj.field)
+            sem_key = (canonical_key, _norm_fact_val(fact_obj.value))
+
+            if sem_key in existing_semantic_map:
+                existing_fact = existing_semantic_map[sem_key]
+                meta = existing_fact.metadata_json or {}
+                occurrences = meta.setdefault("occurrences", [])
+                new_occ = {"source_page": fact_obj.source_page, "source_text": fact_obj.source_text}
+                if new_occ not in occurrences:
+                    occurrences.append(new_occ)
+                if (fact_obj.confidence or 0) > (existing_fact.confidence or 0):
+                    existing_fact.confidence = fact_obj.confidence
+                existing_fact.metadata_json = meta
                 continue
 
             meta = fact_obj.metadata_json or {}
@@ -1216,6 +1298,7 @@ async def process_bidder_documents(
             )
             db.add(db_fact)
             db.flush()
+            existing_semantic_map[sem_key] = db_fact
             AuditLogger.create_entry(
                 db,
                 action="FACT_EXTRACTED",
@@ -1235,7 +1318,6 @@ async def process_bidder_documents(
                     "message": f"Extracted fact: {db_fact.field} = {db_fact.value} (p. {db_fact.source_page or '?'})",
                 },
             )
-            existing_fact_keys.add(item_key)
 
         AuditLogger.log(
             db,
@@ -1307,6 +1389,141 @@ async def process_bidder_documents(
 
     db.commit()
     return job
+
+
+@router.post("/bidders/{id}/deep-audit", status_code=status.HTTP_202_ACCEPTED)
+async def trigger_deep_audit(
+    id: str,
+    background_tasks: BackgroundTasks,
+    principal: AuthenticatedPrincipal = Depends(require_roles(UserRole.ADMIN, UserRole.PROCUREMENT_OFFICER)),
+    db: Session = Depends(get_db),
+):
+    """Enqueues an autonomous advisory Deep Audit investigation for a bidder.
+
+    Returns HTTP 202 with job_id and status=QUEUED.
+    Strict Invariant:
+    - Advisory output only.
+    - Never mutates RuleEvaluation.status or Bidder.status.
+    """
+    bidder = db.query(Bidder).filter(Bidder.id == id).first()
+    if not bidder:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Bidder with ID {id} not found.",
+        )
+
+    # Check for active existing deep audit job
+    existing_job = (
+        db.query(ProcessingJob)
+        .filter(
+            ProcessingJob.target_id == id,
+            ProcessingJob.job_type == "DEEP_AUDIT",
+            ProcessingJob.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
+        )
+        .first()
+    )
+    if existing_job:
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content={
+                "job_id": existing_job.id,
+                "status": existing_job.status.value if hasattr(existing_job.status, "value") else str(existing_job.status),
+                "message": "Deep Audit job is already in progress.",
+            },
+        )
+
+    job = ProcessingJob(
+        target_type="BIDDER",
+        target_id=id,
+        job_type="DEEP_AUDIT",
+        status=JobStatus.QUEUED,
+        current_stage=JobStage.LOAD_CONTEXT,
+        progress=0,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    AuditLogger.log(
+        db,
+        action="DEEP_AUDIT_QUEUED",
+        entity_type="BIDDER",
+        entity_id=id,
+        actor_id=principal.user_id,
+        actor_role=principal.role.value,
+        payload={
+            "job_id": job.id,
+            "bidder_id": id,
+            "tender_id": bidder.tender_id,
+            "target_url": f"/workspace/bidders/{id}",
+            "message": f"Deep audit advisory investigation enqueued for bidder '{bidder.bidder_name}'",
+        },
+    )
+
+    from app.workers.worker import execute_job
+    background_tasks.add_task(execute_job, job.id, "DEEP_AUDIT", id)
+
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
+        content={
+            "job_id": job.id,
+            "status": "QUEUED",
+            "message": "Deep Audit advisory investigation job enqueued.",
+        },
+    )
+
+
+@router.get("/bidders/{id}/deep-audit/latest")
+def get_latest_deep_audit(
+    id: str,
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+):
+    """Retrieves the latest advisory Deep Audit synthesis for a bidder."""
+    bidder = db.query(Bidder).filter(Bidder.id == id).first()
+    if not bidder:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Bidder with ID {id} not found.",
+        )
+
+    latest_job = (
+        db.query(ProcessingJob)
+        .filter(
+            ProcessingJob.target_id == id,
+            ProcessingJob.job_type == "DEEP_AUDIT",
+        )
+        .order_by(ProcessingJob.started_at.desc())
+        .first()
+    )
+    if not latest_job:
+        return {
+            "status": "NOT_STARTED",
+            "job_id": None,
+            "synthesis": None,
+        }
+
+    from app.models.domain import JobEvent
+    latest_event = (
+        db.query(JobEvent)
+        .filter(JobEvent.job_id == latest_job.id)
+        .order_by(JobEvent.seq.desc())
+        .first()
+    )
+
+    synthesis = None
+    if latest_event and isinstance(latest_event.payload, dict) and "summary" in latest_event.payload:
+        synthesis = latest_event.payload
+
+    return {
+        "status": latest_job.status.value if hasattr(latest_job.status, "value") else str(latest_job.status),
+        "stage": latest_job.current_stage.value if hasattr(latest_job.current_stage, "value") else str(latest_job.current_stage),
+        "progress": latest_job.progress,
+        "job_id": latest_job.id,
+        "completed_at": latest_job.completed_at.isoformat() if latest_job.completed_at else None,
+        "synthesis": synthesis,
+    }
+
 
 
 

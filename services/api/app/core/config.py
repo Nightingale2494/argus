@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     ARGUS_INTELLIGENCE_EXTRACT_TENDER_URL: str | None = None
     ARGUS_INTELLIGENCE_EXTRACT_DOCUMENT_URL: str | None = None
     ARGUS_INTELLIGENCE_RAG_URL: str | None = None
+    ARGUS_INTELLIGENCE_RAG_INGEST_URL: str | None = None
+    ARGUS_INTELLIGENCE_EVALUATE_BID_URL: str | None = None
 
     ARGUS_INTELLIGENCE_CONNECT_TIMEOUT_SECONDS: float = 10.0
     ARGUS_INTELLIGENCE_READ_TIMEOUT_SECONDS: float = 60.0
@@ -71,6 +73,7 @@ class Settings(BaseSettings):
 
     REQUEST_TIMEOUT_SECONDS: float = 10.0
     RUN_REAL_INTEGRATION_TESTS: bool = False
+    ARGUS_RUN_INLINE_WORKER: bool = False
 
     # Security & CORS Config
     CORS_ALLOWED_ORIGINS: str | list[str] = "http://localhost:3000"

@@ -25,12 +25,14 @@ from app.schemas.canonical import (
     UserRole,
 )
 from app.services.ai_adapter import AIServiceAdapter
+from app.services.rag_adapter import RAGServiceAdapter
 from app.services.document_service import DocumentService
 from app.services.rule_validator import RuleValidator
 from app.storage.factory import get_storage_provider
 
 router = APIRouter(prefix="/tenders", tags=["Tenders"])
 ai_adapter = AIServiceAdapter()
+rag_adapter = RAGServiceAdapter()
 
 
 @router.post("", response_model=TenderRead, status_code=status.HTTP_201_CREATED)
@@ -326,6 +328,34 @@ async def process_tender(
             res_payload = JobRead.model_validate(job).model_dump(mode="json")
             IdempotencyService.complete(db, record, status.HTTP_200_OK, res_payload)
             return job
+
+        # Index tender document into RAG for policy and clause intelligence
+        try:
+            rag_ingest_res = await rag_adapter.ingest_document(
+                document_id=doc.id,
+                title=doc.filename,
+                document_uri=doc.storage_uri,
+                document_type="TENDER",
+                tender_id=id,
+                source_uri=doc.storage_uri,
+            )
+            if rag_ingest_res.get("success"):
+                AuditLogger.log(
+                    db,
+                    action="RAG_DOCUMENT_INGESTED",
+                    entity_type="DOCUMENT",
+                    entity_id=doc.id,
+                    actor_id=principal.user_id,
+                    actor_role=principal.role.value,
+                    payload={
+                        "tender_id": id,
+                        "document_id": doc.id,
+                        "chunks_indexed": rag_ingest_res.get("chunks_indexed", 0),
+                        "message": f"Tender document '{doc.filename}' indexed for clause intelligence retrieval",
+                    },
+                )
+        except Exception:
+            pass  # Non-blocking advisory ingestion
 
         # Canonical requirement idempotency: protect approved requirements and prevent duplicates
         existing_reqs = (

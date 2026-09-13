@@ -845,7 +845,13 @@ class BidVerificationService:
             overall_status = self.compute_overall_status(evaluations_schema)
             reason_code = "NO_APPROVED_REQUIREMENTS" if not evaluations_schema else None
 
-            # Mark ComplianceRun execution_status = COMPLETED, set overall_status & input_snapshot_json
+            # Compute canonical snapshot hash for integrity verification
+            import hashlib
+            import json
+
+            snapshot_bytes = json.dumps(input_snapshot, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+            snapshot_hash = hashlib.sha256(snapshot_bytes).hexdigest()
+
             run.execution_status = JobStatus.COMPLETED
             run.overall_status = overall_status
             run.completed_at = datetime.now(timezone.utc)
@@ -853,9 +859,13 @@ class BidVerificationService:
                 "overall_status": overall_status.value if isinstance(overall_status, ComplianceStatus) else str(overall_status),
                 "evaluation_count": len(evaluations_schema),
                 "risk_count": len(risk_signals_schema),
+                "snapshot_hash": snapshot_hash,
+                "hash_algorithm": "SHA-256",
+                "canonicalization_version": "1.0",
             }
             if reason_code:
                 summary_dict["reason_code"] = reason_code
+            summary_dict["verified_at"] = datetime.now(timezone.utc).isoformat()
             run.summary_json = summary_dict
             run.input_snapshot_json = input_snapshot
 

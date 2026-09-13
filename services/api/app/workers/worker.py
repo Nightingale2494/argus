@@ -35,7 +35,15 @@ def claim_job():
 
         resource_type = job.target_type
         resource_id = job.target_id
-        operation = "PROCESS_TENDER" if job.job_type == "EXTRACT_REQUIREMENTS" else "VERIFY_BIDDER"
+        if job.job_type == "EXTRACT_REQUIREMENTS":
+            operation = "PROCESS_TENDER"
+            stage = JobStage.EXTRACTION
+        elif job.job_type == "DEEP_AUDIT":
+            operation = "DEEP_AUDIT"
+            stage = JobStage.LOAD_CONTEXT
+        else:
+            operation = "VERIFY_BIDDER"
+            stage = JobStage.VERIFICATION
 
         try:
             OperationLockService.acquire_lock(
@@ -53,7 +61,6 @@ def claim_job():
         job.status = JobStatus.RUNNING
         job.started_at = datetime.now(timezone.utc)
         
-        stage = JobStage.EXTRACTION if job.job_type == "EXTRACT_REQUIREMENTS" else JobStage.VERIFICATION
         JobEventService.emit_event(
             db=db,
             job_id=job.id,
@@ -88,7 +95,12 @@ def _sanitize_worker_error(exc: Exception) -> str:
 async def execute_job(job_id: str, job_type: str, target_id: str) -> None:
     """Executes a claimed background job with safe transaction boundaries and error categorization."""
     resource_type = "TENDER" if job_type == "EXTRACT_REQUIREMENTS" else "BIDDER"
-    operation = "PROCESS_TENDER" if job_type == "EXTRACT_REQUIREMENTS" else "VERIFY_BIDDER"
+    if job_type == "EXTRACT_REQUIREMENTS":
+        operation = "PROCESS_TENDER"
+    elif job_type == "DEEP_AUDIT":
+        operation = "DEEP_AUDIT"
+    else:
+        operation = "VERIFY_BIDDER"
     release_lock_on_exit = True
 
     try:
@@ -300,6 +312,10 @@ async def execute_job(job_id: str, job_type: str, target_id: str) -> None:
                 )
             finally:
                 db.close()
+        elif job_type == "DEEP_AUDIT":
+            from app.services.deep_audit_service import DeepAuditService
+            audit_svc = DeepAuditService()
+            await audit_svc.run_deep_audit(job_id=job_id, bidder_id=target_id)
         else:
             db = SessionLocal()
             try:

@@ -9,6 +9,7 @@ from typing import Any
 import uuid
 
 from app.compliance.reason_codes import ReasonCode
+from app.compliance.canonical_fields import are_fields_equivalent, resolve_canonical_field
 from app.schemas.canonical import (
     ComplianceStatus,
     FactRead,
@@ -1242,8 +1243,8 @@ class ComplianceEngine:
                 evaluated_at=eval_ts,
             )
 
-        matching_facts = [f for f in facts if f.field == rule.field]
-        matching_verifications = [v for v in verification_results if v.field == rule.field]
+        matching_facts = [f for f in facts if are_fields_equivalent(f.field, rule.field)]
+        matching_verifications = [v for v in verification_results if are_fields_equivalent(v.field, rule.field)]
 
         # PRECEDENCE 1: External verification service error / unavailable / timeout
         unhealthy_verifications = [

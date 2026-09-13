@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, AlertCircle, Info } from 'lucide-react';
+import { AlertTriangle, AlertCircle, Info, Cpu } from 'lucide-react';
 import type { RiskSignalRead } from '@/types/api';
 
 interface RiskSignalCardProps {
@@ -21,6 +21,11 @@ export const RiskSignalCard: React.FC<RiskSignalCardProps> = ({ risk }) => {
       ? AlertCircle
       : Info;
 
+  const detectionMethod =
+    (risk.metadata_json as Record<string, unknown> | undefined)?.detection_method
+      ? String((risk.metadata_json as Record<string, unknown>).detection_method)
+      : 'Deterministic Anomaly & Risk Rule Engine';
+
   return (
     <div className={`p-3.5 rounded-xl border ${severityColors} space-y-2`}>
       <div className="flex items-center justify-between">
@@ -37,6 +42,14 @@ export const RiskSignalCard: React.FC<RiskSignalCardProps> = ({ risk }) => {
 
       <p className="text-xs font-semibold text-white">{risk.title}</p>
       <p className="text-xs leading-relaxed text-slate-300 font-mono">{risk.description}</p>
+
+      <div className="pt-1 flex items-center justify-between text-[10px] font-mono text-zinc-400 border-t border-white/5">
+        <span className="inline-flex items-center gap-1">
+          <Cpu className="w-3 h-3 text-zinc-500" />
+          <span>Detection: {detectionMethod}</span>
+        </span>
+        <span className="text-zinc-500 italic">Advisory Heuristic</span>
+      </div>
     </div>
   );
 };
