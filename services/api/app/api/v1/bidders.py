@@ -1504,16 +1504,18 @@ def get_latest_deep_audit(
         }
 
     from app.models.domain import JobEvent
-    latest_event = (
+    events = (
         db.query(JobEvent)
         .filter(JobEvent.job_id == latest_job.id)
         .order_by(JobEvent.seq.desc())
-        .first()
+        .all()
     )
 
     synthesis = None
-    if latest_event and isinstance(latest_event.payload, dict) and "summary" in latest_event.payload:
-        synthesis = latest_event.payload
+    for ev in events:
+        if ev.payload and isinstance(ev.payload, dict) and ("summary" in ev.payload or "summary_text" in ev.payload):
+            synthesis = ev.payload
+            break
 
     return {
         "status": latest_job.status.value if hasattr(latest_job.status, "value") else str(latest_job.status),

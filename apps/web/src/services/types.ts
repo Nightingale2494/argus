@@ -104,6 +104,169 @@ export interface RAGExplainResponse {
   error_message?: string | null;
 }
 
+export type FindingSeverity = 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+
+export type FindingCategory =
+  | 'CROSS_DOCUMENT_CONFLICT'
+  | 'MISSING_EVIDENCE'
+  | 'TENDER_BIDDER_MISMATCH'
+  | 'STATUTORY_MISMATCH'
+  | 'ANOMALY_SIGNAL'
+  | 'RAG_CONTEXT'
+  | 'DATE_CONFLICT'
+  | 'VALUE_CONFLICT'
+  | 'DOCUMENT_INCONSISTENCY'
+  | 'UNRESOLVED_QUESTION';
+
+export interface DeepAuditFinding {
+  finding_id: string;
+  category: FindingCategory | string;
+  severity: FindingSeverity | string;
+  title: string;
+  description: string;
+  affected_field?: string;
+  affected_fields?: string[];
+  tender_requirement?: string;
+  bidder_value?: string | null;
+  evidence?: string | null;
+  evidence_provenance?: Array<{
+    document_name: string;
+    page?: number | null;
+    field?: string;
+    raw_value: string;
+  }>;
+  source_document?: string | null;
+  page?: number | null;
+  rule_or_detection_method?: string;
+  detection_method?: string;
+  recommended_action?: string;
+  status?: string;
+}
+
+export interface CrossDocumentConflictItem {
+  conflict_id?: string;
+  field?: string;
+  field_name?: string;
+  tender_requirement?: string;
+  documents_involved?: Array<{
+    document_name: string;
+    document_type: string;
+    value: string;
+    page?: number | null;
+  }>;
+  document_a_id?: string;
+  document_a_name?: string;
+  document_a_page?: number | null;
+  document_a_value?: string;
+  document_b_id?: string;
+  document_b_name?: string;
+  document_b_page?: number | null;
+  document_b_value?: string;
+  difference_description?: string;
+  severity?: FindingSeverity | string;
+  status?: string; // 'CONFLICT_DETECTED'
+  compliance_engine_choice?: string | null;
+  officer_review_reason?: string;
+}
+
+export interface MissingEvidenceItem {
+  item_id: string;
+  requirement_title: string;
+  requirement_description: string;
+  status: 'MISSING' | 'AMBIGUOUS' | 'EXPIRED' | 'WEAK' | 'INCOMPLETE' | string;
+  bidder_evidence_status: string;
+  recommended_action: string;
+}
+
+export interface StatutoryInvestigationItem {
+  identifier_type: 'GSTIN' | 'PAN' | 'CIN' | 'UDYAM' | 'EPFO' | 'ESIC' | 'BLACKLIST' | string;
+  identifier_value: string;
+  provider_mode: 'LIVE' | 'CONFIGURED_UNVERIFIED' | 'DEMO_SYNTHETIC' | string;
+  verification_result: 'VERIFIED' | 'MISMATCH' | 'UNVERIFIED' | 'CLEARED' | 'FLAGGED' | string;
+  document_derived_value?: string | null;
+  external_derived_value?: string | null;
+  conflict_status: 'NO_CONFLICT' | 'CONFLICT_DETECTED' | 'UNVERIFIED' | string;
+  details: string;
+}
+
+export interface RiskAnomalyItem {
+  signal_id: string;
+  rule_name: string;
+  engine_label: string; // 'DETERMINISTIC ANOMALY & RISK RULE ENGINE'
+  input_values: string[];
+  why_triggered: string;
+  severity: FindingSeverity;
+  supporting_evidence: string;
+}
+
+export interface RAGInvestigationItem {
+  query: string;
+  direct_tender_evidence?: string | null;
+  related_policy_context?: string | null;
+  citation_document?: string | null;
+  citation_page?: number | null;
+  advisory_result: string;
+  is_advisory: boolean;
+}
+
+export interface UnresolvedQuestionItem {
+  question_id: string;
+  question: string;
+  background: string;
+  reason_cannot_auto_resolve: string;
+  officer_prompt: string;
+}
+
+export interface RecommendedActionItem {
+  action_id: string;
+  action_type: 'MANUAL_VERIFY' | 'REQUEST_CLARIFICATION' | 'REQUEST_DOCUMENT' | 'REVIEW_CONFLICT' | 'CONFIRM_EXEMPTION' | 'INSPECT_PAGE' | string;
+  title: string;
+  description: string;
+  target_document?: string | null;
+  target_page?: number | null;
+  is_recommendation_only: boolean;
+}
+
+export interface EvidenceChainItem {
+  chain_id: string;
+  tender_requirement: {
+    id: string;
+    clause: string;
+    text: string;
+  };
+  bidder_evidence: {
+    document_id: string;
+    document_name: string;
+    page?: number | null;
+    excerpt: string;
+  };
+  extracted_fact: {
+    canonical_field: string;
+    extracted_value: string;
+    confidence?: number | null;
+  };
+  rule_investigation: {
+    detection_method: string;
+    engine: string;
+    evaluation: string;
+  };
+  deep_audit_finding: {
+    finding_id: string;
+    title: string;
+    severity: string;
+  };
+}
+
+export interface WorkflowStageTraceItem {
+  stage_key: string;
+  label: string;
+  status: 'COMPLETED' | 'RUNNING' | 'PENDING' | 'INTERRUPTED' | string;
+  short_description: string;
+  findings_produced: number;
+  evidence_used: number;
+  duration_ms?: number | null;
+}
+
 export interface DeepAuditConflict {
   clause_reference: string;
   conflict_type: string;
@@ -120,13 +283,46 @@ export interface DeepAuditPrecedent {
 }
 
 export interface DeepAuditSynthesis {
-  summary: string;
-  conflicts_detected: DeepAuditConflict[];
-  policy_precedents: DeepAuditPrecedent[];
-  evidence_synthesis: string;
-  recommended_human_inquiries: string[];
-  disclaimer: string;
+  run_id?: string;
+  started_at?: string;
+  completed_at?: string | null;
+  status?: string;
+  tender_id?: string;
+  bidder_id?: string;
+  tender_title?: string | null;
+  bidder_name?: string | null;
   is_advisory: boolean;
+  advisory_disclaimer?: string;
+  summary: string;
+  summary_text?: string;
+
+  // Counts & metrics
+  total_findings_count?: number;
+  high_priority_count?: number;
+  review_required_count?: number;
+  informational_count?: number;
+  unresolved_questions_count?: number;
+  conflicts_count?: number;
+  missing_evidence_count?: number;
+
+  // Structured investigation collections
+  workflow_trace?: WorkflowStageTraceItem[];
+  findings?: DeepAuditFinding[];
+  cross_document_conflicts?: CrossDocumentConflictItem[];
+  missing_evidence?: MissingEvidenceItem[];
+  statutory_investigations?: StatutoryInvestigationItem[];
+  risk_anomalies?: RiskAnomalyItem[];
+  rag_investigations?: RAGInvestigationItem[];
+  unresolved_questions?: UnresolvedQuestionItem[];
+  recommended_actions?: RecommendedActionItem[];
+  evidence_chains?: EvidenceChainItem[];
+
+  // Legacy backward-compatibility fields
+  conflicts_detected?: DeepAuditConflict[];
+  policy_precedents?: DeepAuditPrecedent[];
+  evidence_synthesis?: string;
+  recommended_human_inquiries?: string[];
+  disclaimer?: string;
   langgraph_trace?: string[];
   langgraph_interrupted?: boolean;
   langgraph_reasons?: string[];
@@ -140,4 +336,5 @@ export interface DeepAuditStatusResponse {
   completed_at?: string | null;
   synthesis?: DeepAuditSynthesis | null;
 }
+
 

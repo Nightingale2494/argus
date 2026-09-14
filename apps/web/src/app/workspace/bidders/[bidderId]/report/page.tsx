@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { 
-  ShieldCheck, Printer, Download, ArrowLeft, RefreshCw, AlertCircle
+  ShieldCheck, Printer, Download, ArrowLeft, RefreshCw, AlertCircle, FileText, FileSearch
 } from "lucide-react";
 import { api } from "@/services/api";
 import { demoStore } from "@/services/demo-store";
@@ -151,7 +151,13 @@ export default function ReportPage() {
           href={`/workspace/bidders/${bidderId}/matrix${querySuffix}`}
           className="pb-2.5 font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5"
         >
-          Compliance Matrix
+          <FileText className="w-3.5 h-3.5" /> Compliance Matrix
+        </Link>
+        <Link
+          href={`/workspace/bidders/${bidderId}/deep-audit${querySuffix}`}
+          className="pb-2.5 font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5"
+        >
+          <FileSearch className="w-3.5 h-3.5" /> Deep Audit
         </Link>
         <Link
           href={`/workspace/bidders/${bidderId}/review${querySuffix}`}
@@ -161,7 +167,7 @@ export default function ReportPage() {
         </Link>
         <Link
           href={`/workspace/bidders/${bidderId}/report${querySuffix}`}
-          className="pb-2.5 font-semibold border-b-2 border-emerald-500 text-emerald-400 flex items-center gap-1.5"
+          className="pb-2.5 font-semibold border-b-2 border-blue-500 text-blue-400 flex items-center gap-1.5"
         >
           <ShieldCheck className="w-3.5 h-3.5" /> Audit Report
         </Link>

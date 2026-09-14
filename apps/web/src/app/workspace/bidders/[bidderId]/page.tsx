@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { 
   Building2, ShieldCheck, CheckCircle, AlertTriangle, XCircle, 
-  Clock, ArrowLeft, RefreshCw, Sparkles, FileText, CheckSquare, Upload, AlertCircle, Bot
+  Clock, ArrowLeft, RefreshCw, Sparkles, FileText, CheckSquare, Upload, AlertCircle, FileSearch
 } from "lucide-react";
 import { api } from "@/services/api";
 import { demoStore, DemoBidderDocument } from "@/services/demo-store";
@@ -29,6 +29,10 @@ export default function BidderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const storedDemoBidder = bidderId ? demoStore.getBidder(bidderId) : null;
+  const isDemo = isDemoPreview || Boolean(storedDemoBidder);
+  const querySuffix = isDemo ? '?mode=demo' : '';
+
   // Async Jobs
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [triggeringVerify, setTriggeringVerify] = useState(false);
@@ -44,9 +48,6 @@ export default function BidderDetailPage() {
   // Mismatch & Risk Explainability Modal State
   const [mismatchModalOpen, setMismatchModalOpen] = useState(false);
   const [selectedDocForMismatch, setSelectedDocForMismatch] = useState<DemoBidderDocument | null>(null);
-
-  const storedDemoBidder = bidderId ? demoStore.getBidder(bidderId) : null;
-  const isDemo = isDemoPreview || Boolean(storedDemoBidder);
 
   const loadBidderData = useCallback(async () => {
     if (!bidderId) return;
@@ -368,10 +369,10 @@ export default function BidderDetailPage() {
                 : "Evaluate Compliance"}
             </button>
             <Link
-              href={`/workspace/bidders/${bidderId}/review`}
+              href={`/workspace/bidders/${bidderId}/deep-audit${querySuffix}`}
               className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors shadow-sm shadow-indigo-950/30"
             >
-              <Bot className="w-4 h-4" />
+              <FileSearch className="w-4 h-4" />
               <span>Deep Audit</span>
             </Link>
           </div>
@@ -419,10 +420,10 @@ export default function BidderDetailPage() {
         </div>
       )}
 
-      {/* Navigation Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Navigation Cards (4 Distinct Workflows) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link
-          href={`/workspace/bidders/${bidderId}/matrix`}
+          href={`/workspace/bidders/${bidderId}/matrix${querySuffix}`}
           className="p-5 rounded-xl bg-zinc-900/60 border border-zinc-800 hover:border-blue-500/50 transition-colors group block"
         >
           <div className="flex items-center justify-between mb-2">
@@ -437,7 +438,22 @@ export default function BidderDetailPage() {
         </Link>
 
         <Link
-          href={`/workspace/bidders/${bidderId}/review`}
+          href={`/workspace/bidders/${bidderId}/deep-audit${querySuffix}`}
+          className="p-5 rounded-xl bg-zinc-900/60 border border-indigo-900/40 hover:border-indigo-500/60 transition-colors group block bg-indigo-950/10"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-semibold text-zinc-200 group-hover:text-indigo-400 flex items-center gap-2">
+              <FileSearch className="w-4 h-4 text-indigo-400" /> Deep Audit
+            </h3>
+            <span className="text-xs text-indigo-400 font-medium">Investigation</span>
+          </div>
+          <p className="text-xs text-zinc-400">
+            Uncover cross-document conflicts, missing evidence chains, and advisory policy precedents.
+          </p>
+        </Link>
+
+        <Link
+          href={`/workspace/bidders/${bidderId}/review${querySuffix}`}
           className="p-5 rounded-xl bg-zinc-900/60 border border-zinc-800 hover:border-amber-500/50 transition-colors group block"
         >
           <div className="flex items-center justify-between mb-2">
@@ -452,7 +468,7 @@ export default function BidderDetailPage() {
         </Link>
 
         <Link
-          href={`/workspace/bidders/${bidderId}/report`}
+          href={`/workspace/bidders/${bidderId}/report${querySuffix}`}
           className="p-5 rounded-xl bg-zinc-900/60 border border-zinc-800 hover:border-emerald-500/50 transition-colors group block"
         >
           <div className="flex items-center justify-between mb-2">

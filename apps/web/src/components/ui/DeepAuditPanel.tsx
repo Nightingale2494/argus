@@ -311,15 +311,15 @@ export function DeepAuditPanel({
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-400">
               <AlertTriangle className="w-4 h-4 text-amber-400" />
-              <span>Potential Conflicts & Ambiguities ({synthesis.conflicts_detected.length})</span>
+              <span>Potential Conflicts & Ambiguities ({(synthesis.conflicts_detected || []).length})</span>
             </div>
-            {synthesis.conflicts_detected.length === 0 ? (
+            {(synthesis.conflicts_detected || []).length === 0 ? (
               <p className="text-xs text-zinc-400 bg-zinc-950 p-3 rounded border border-zinc-800/60">
                 No policy or cross-clause contradictions detected across bidder evidence.
               </p>
             ) : (
               <div className="grid gap-2.5">
-                {synthesis.conflicts_detected.map((conf, idx) => (
+                {(synthesis.conflicts_detected || []).map((conf, idx) => (
                   <div
                     key={idx}
                     className="p-3.5 rounded-lg bg-zinc-950 border border-zinc-800 space-y-1.5"
@@ -350,15 +350,15 @@ export function DeepAuditPanel({
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-400">
               <Scale className="w-4 h-4 text-blue-400" />
-              <span>Policy Precedents & Legal Context ({synthesis.policy_precedents.length})</span>
+              <span>Policy Precedents & Legal Context ({(synthesis.policy_precedents || []).length})</span>
             </div>
-            {synthesis.policy_precedents.length === 0 ? (
+            {(synthesis.policy_precedents || []).length === 0 ? (
               <p className="text-xs text-zinc-400 bg-zinc-950 p-3 rounded border border-zinc-800/60">
                 No external policy precedent required.
               </p>
             ) : (
               <div className="grid gap-2.5">
-                {synthesis.policy_precedents.map((prec, idx) => (
+                {(synthesis.policy_precedents || []).map((prec, idx) => (
                   <div
                     key={idx}
                     className="p-3.5 rounded-lg bg-zinc-950 border border-zinc-800 space-y-1.5"
@@ -388,7 +388,7 @@ export function DeepAuditPanel({
               <span>Recommended Inquiries for Procurement Officer</span>
             </div>
             <div className="bg-zinc-950 p-4 rounded-lg border border-zinc-800 space-y-2">
-              {synthesis.recommended_human_inquiries.map((inq, idx) => (
+              {(synthesis.recommended_human_inquiries || []).map((inq, idx) => (
                 <div key={idx} className="flex items-start gap-2.5 text-xs text-zinc-200">
                   <ArrowRight className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
                   <span>{inq}</span>

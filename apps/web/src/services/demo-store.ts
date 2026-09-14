@@ -381,7 +381,44 @@ const DEFAULT_DEMO_STATE: DemoState = {
         status: 'PENDING',
         metadata_json: {},
         created_at: '2026-08-16T10:10:00Z',
-        documents: [],
+        documents: [
+          {
+            id: 'doc_bharat_balance_sheet',
+            tender_id: 'tender_gem_2026_03',
+            bidder_id: 'bidder_bharat_03',
+            filename: 'audited_balance_sheet_fy25.pdf',
+            storage_uri: 'data/uploads/audited_balance_sheet_fy25.pdf',
+            sha256: 'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0',
+            document_type: 'FINANCIAL_STATEMENT',
+            content_type: 'application/pdf',
+            size_bytes: 284000,
+            created_at: '2026-08-16T10:15:00Z',
+          },
+          {
+            id: 'doc_bharat_financial_summary',
+            tender_id: 'tender_gem_2026_03',
+            bidder_id: 'bidder_bharat_03',
+            filename: 'unaudited_financial_summary.pdf',
+            storage_uri: 'data/uploads/unaudited_financial_summary.pdf',
+            sha256: 'b2c3d4e5f6a17890123456789abcdef0123456789abcdef0123456789abcdef1',
+            document_type: 'FINANCIAL_STATEMENT',
+            content_type: 'application/pdf',
+            size_bytes: 142000,
+            created_at: '2026-08-16T10:16:00Z',
+          },
+          {
+            id: 'doc_bharat_dist_letter',
+            tender_id: 'tender_gem_2026_03',
+            bidder_id: 'bidder_bharat_03',
+            filename: 'SolarDist_Distributor_Letter.pdf',
+            storage_uri: 'data/uploads/SolarDist_Distributor_Letter.pdf',
+            sha256: 'c3d4e5f6a1b27890123456789abcdef0123456789abcdef0123456789abcdef2',
+            document_type: 'OEM_AUTHORIZATION',
+            content_type: 'application/pdf',
+            size_bytes: 98000,
+            created_at: '2026-08-16T10:17:00Z',
+          },
+        ],
       },
     ],
   },
@@ -509,7 +546,7 @@ const DEFAULT_DEMO_STATE: DemoState = {
           field: 'financial.average_annual_turnover',
           operator: 'GTE',
           expected_value: 85000000,
-          observed_value: 90000000,
+          observed_value: 92000000,
           status: 'PASS',
           reason_code: 'NUMERIC_GTE',
           evidence_ids: ['ev_to_c02'],
@@ -585,6 +622,66 @@ const DEFAULT_DEMO_STATE: DemoState = {
         checked_at: '2026-08-20T11:58:00Z',
         verification_reference: 'DEMO-GSTN-567812',
       },
+      {
+        id: 'vr_c02',
+        bidder_id: 'bidder_bharat_03',
+        field: 'pan',
+        claimed_value: 'AAGCB5678K',
+        verified_value: 'Valid (LLP/Firm)',
+        status: 'VERIFIED',
+        source: 'MCA_DEMO_DATA',
+        mode: 'DEMO',
+        checked_at: '2026-08-20T11:58:05Z',
+        verification_reference: 'DEMO-PAN-5678K',
+      },
+      {
+        id: 'vr_c03',
+        bidder_id: 'bidder_bharat_03',
+        field: 'udyam_number',
+        claimed_value: 'UDYAM-MH-02-0054321',
+        verified_value: 'Small Enterprise (Solar Equipment)',
+        status: 'VERIFIED',
+        source: 'UDYAM_DEMO_DATA',
+        mode: 'DEMO',
+        checked_at: '2026-08-20T11:58:10Z',
+        verification_reference: 'DEMO-UDYAM-54321',
+      },
+      {
+        id: 'vr_c04',
+        bidder_id: 'bidder_bharat_03',
+        field: 'epfo',
+        claimed_value: 'Not Claimed / Unregistered',
+        verified_value: 'Unverified',
+        status: 'UNVERIFIED',
+        source: 'EPFO_DEMO_DATA',
+        mode: 'DEMO',
+        checked_at: '2026-08-20T11:58:15Z',
+        verification_reference: null,
+      },
+      {
+        id: 'vr_c05',
+        bidder_id: 'bidder_bharat_03',
+        field: 'esic',
+        claimed_value: 'Not Claimed / Unregistered',
+        verified_value: 'Unverified',
+        status: 'UNVERIFIED',
+        source: 'ESIC_DEMO_DATA',
+        mode: 'DEMO',
+        checked_at: '2026-08-20T11:58:20Z',
+        verification_reference: null,
+      },
+      {
+        id: 'vr_c06',
+        bidder_id: 'bidder_bharat_03',
+        field: 'blacklisted',
+        claimed_value: 'Clean / No Record',
+        verified_value: 'Cleared across CPPP, GeM & Debarment lists',
+        status: 'VERIFIED',
+        source: 'BLACKLIST_DEMO_DATA',
+        mode: 'DEMO',
+        checked_at: '2026-08-20T11:58:25Z',
+        verification_reference: 'DEMO-DEBAR-CLEAN',
+      },
     ],
   },
   humanDecisions: {
@@ -594,31 +691,368 @@ const DEFAULT_DEMO_STATE: DemoState = {
   },
   deepAuditSyntheses: {
     bidder_alpha_01: {
-      summary: "Autonomous advisory audit completed for Acme Systems. Identified 1 high-priority conflict regarding turnover reconciliation and 1 valid statutory exemption applicable under Demo Policy Fixture P-153 (Synthetic Procurement Policy — MSME Exemption).",
+      run_id: 'run_deep_audit_alpha_01',
+      started_at: '2026-08-20T12:05:00Z',
+      completed_at: '2026-08-20T12:05:12Z',
+      status: 'COMPLETED',
+      tender_id: 'tender_gem_2026_01',
+      bidder_id: 'bidder_alpha_01',
+      tender_title: 'Comprehensive Highway Surveillance & IT Infrastructure Modernization',
+      bidder_name: 'Alpha Infotech Private Limited',
+      is_advisory: true,
+      advisory_disclaimer: 'Advisory Analysis Only: Deep Audit provides investigation assistance. It does not mutate deterministic compliance evaluations or override officer authority.',
+      summary: 'Autonomous advisory audit completed for Alpha Infotech Private Limited. Deterministic compliance verified all 3 mandatory requirements as PASS. Advisory investigation confirms active statutory registration across GSTIN and Udyam. MSME turnover exemption guidance verified applicable under Public Procurement Policy 2012 as an advisory reference.',
+      total_findings_count: 2,
+      high_priority_count: 0,
+      review_required_count: 0,
+      informational_count: 2,
+      unresolved_questions_count: 1,
+      conflicts_count: 0,
+      missing_evidence_count: 0,
+      workflow_trace: [
+        { stage_key: 'tender_intelligence', label: 'Tender Intelligence', status: 'COMPLETED', short_description: '3 criteria indexed, 0 ambiguities in baseline RFP.', findings_produced: 0, evidence_used: 3, duration_ms: 120 },
+        { stage_key: 'document_intelligence', label: 'Document Intelligence', status: 'COMPLETED', short_description: '2 documents parsed (GST Certificate, CA Turnover Certificate). OCR confidence 97%.', findings_produced: 0, evidence_used: 2, duration_ms: 340 },
+        { stage_key: 'knowledge', label: 'Knowledge & Precedents', status: 'COMPLETED', short_description: '[SYNTHETIC POLICY CONTEXT • DEMO ONLY] Precedent indexed for MSE exemption advisory context.', findings_produced: 1, evidence_used: 1, duration_ms: 210 },
+        { stage_key: 'risk', label: 'Deterministic Risk & Anomalies', status: 'COMPLETED', short_description: 'Deterministic risk heuristics scanned. 0 fraud or debarment signals.', findings_produced: 0, evidence_used: 4, duration_ms: 180 },
+        { stage_key: 'compliance', label: 'Compliance Synthesis', status: 'COMPLETED', short_description: 'Cross-document fact consistency verified across all filings.', findings_produced: 1, evidence_used: 3, duration_ms: 250 },
+        { stage_key: 'human_review', label: 'Advisory Summary for Officer', status: 'COMPLETED', short_description: 'Advisory synthesis compiled. 0 blocking flags for officer review.', findings_produced: 0, evidence_used: 2, duration_ms: 90 },
+      ],
+      findings: [
+        {
+          finding_id: 'find_alpha_01',
+          category: 'RAG_CONTEXT',
+          severity: 'INFO',
+          title: 'Advisory MSME Turnover Exemption Precedent Available',
+          description: '[SYNTHETIC POLICY CONTEXT • DEMO ONLY] Synthetic Procurement Precedent permits exemption from prior turnover/experience criteria for Micro & Small Enterprises meeting technical specifications.',
+          affected_fields: ['financial.average_annual_turnover'],
+          evidence_provenance: [{ document_name: 'ca_turnover_certificate.pdf', page: 1, field: 'financial.average_annual_turnover', raw_value: '₹6.50 Cr' }],
+          detection_method: 'POLICY_PRECEDENT_RETRIEVAL',
+          recommended_action: 'Note exemption applicability for record; bidder independently meets turnover threshold (₹6.50 Cr vs ₹5.00 Cr requirement).',
+        },
+        {
+          finding_id: 'find_alpha_02',
+          category: 'STATUTORY_MISMATCH',
+          severity: 'INFO',
+          title: 'Statutory Registry Synchronization Verified',
+          description: 'Active GSTIN and Udyam registrations match claimed corporate credentials with 100% field parity.',
+          affected_fields: ['tax.gstin', 'enterprise.udyam'],
+          evidence_provenance: [{ document_name: 'gst_certificate.pdf', page: 1, field: 'tax.gstin', raw_value: '07AABCA1234H1Z9' }],
+          detection_method: 'REGISTRY_CROSS_CHECK',
+          recommended_action: 'No officer action required.',
+        },
+      ],
+      cross_document_conflicts: [],
+      missing_evidence: [],
+      statutory_investigations: [
+        { identifier_type: 'GSTIN', identifier_value: '07AABCA1234H1Z9', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'VERIFIED', document_derived_value: '07AABCA1234H1Z9', external_derived_value: '07AABCA1234H1Z9 (Active Taxpayer)', conflict_status: 'NO_CONFLICT', details: 'Active regular taxpayer under Delhi GST ward 01.' },
+        { identifier_type: 'PAN', identifier_value: 'AABCA1234H', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'VERIFIED', document_derived_value: 'AABCA1234H', external_derived_value: 'AABCA1234H (Valid - Company)', conflict_status: 'NO_CONFLICT', details: 'Valid corporate PAN registered with Income Tax Department.' },
+        { identifier_type: 'UDYAM', identifier_value: 'UDYAM-DL-01-0012345', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'VERIFIED', document_derived_value: 'UDYAM-DL-01-0012345', external_derived_value: 'UDYAM-DL-01-0012345 (Small Enterprise)', conflict_status: 'NO_CONFLICT', details: 'Small Enterprise in IT Infrastructure & Software Services.' },
+        { identifier_type: 'CIN', identifier_value: 'U72200DL2018PTC123456', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'VERIFIED', document_derived_value: 'U72200DL2018PTC123456', external_derived_value: 'U72200DL2018PTC123456 (Active)', conflict_status: 'NO_CONFLICT', details: 'Active Private Limited company registered with RoC Delhi.' },
+        { identifier_type: 'EPFO', identifier_value: 'DL/CPM/0045210/000', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'VERIFIED', document_derived_value: 'DL/CPM/0045210/000', external_derived_value: 'DL/CPM/0045210/000 (Active - 42 Contrib.)', conflict_status: 'NO_CONFLICT', details: 'Regular EPFO monthly returns filed.' },
+        { identifier_type: 'ESIC', identifier_value: '11000452100001001', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'VERIFIED', document_derived_value: '11000452100001001', external_derived_value: '11000452100001001 (Active)', conflict_status: 'NO_CONFLICT', details: 'ESIC compliance active.' },
+        { identifier_type: 'BLACKLIST', identifier_value: 'Alpha Infotech Private Limited', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'CLEARED', document_derived_value: 'Alpha Infotech Private Limited', external_derived_value: 'No Debarment Record', conflict_status: 'NO_CONFLICT', details: 'Clean across CPPP, GeM Incident Management, and Central Debarment lists.' },
+      ],
+      risk_anomalies: [
+        { signal_id: 'sig_alpha_01', rule_name: 'REVENUE_STABILITY_SCAN', engine_label: 'DETERMINISTIC ANOMALY & RISK RULE ENGINE', input_values: ['Turnover: ₹6.50 Cr', 'Threshold: ₹5.00 Cr'], why_triggered: 'Positive margin (30% above mandatory tender threshold). No negative variances detected.', severity: 'INFO', supporting_evidence: 'ca_turnover_certificate.pdf (Page 1)' },
+      ],
+      rag_investigations: [
+        { query: 'Is MSME turnover exemption applicable to this tender?', direct_tender_evidence: 'Clause 4.2.3 mandates INR 5.00 Cr turnover without explicit MSE waiver mention in Section IV.', related_policy_context: '[SYNTHETIC POLICY CONTEXT • DEMO ONLY] Synthetic Procurement Precedent: Order permits exemption from prior turnover/experience for MSEs subject to meeting quality and technical specifications.', citation_document: 'highway_surveillance_rfp_2026.pdf', citation_page: 5, advisory_result: 'ADVISORY_POLICY_APPLICABLE', is_advisory: true },
+      ],
+      unresolved_questions: [
+        { question_id: 'uq_alpha_01', question: 'Should the procurement committee formally record the MSE exemption status in the evaluation summary?', background: 'Bidder independently passes financial turnover criteria without relying on the exemption.', reason_cannot_auto_resolve: 'Policy recording convention depends on procuring authority administrative guidelines.', officer_prompt: 'ARGUS cannot safely resolve this automatically. OFFICER REVIEW REQUIRED.' },
+      ],
+      recommended_actions: [
+        { action_id: 'rec_alpha_01', action_type: 'CONFIRM_EXEMPTION', title: 'Acknowledge Statutory MSE Certificate', description: 'Record verified Small Enterprise status in tender evaluation minutes for statutory reporting compliance.', is_recommendation_only: true },
+      ],
+      evidence_chains: [
+        {
+          chain_id: 'chain_alpha_01',
+          tender_requirement: { id: 'req_02', clause: 'Clause 4.2.3', text: 'Minimum average annual turnover shall be INR 5,00,00,000 for the last 3 financial years.' },
+          bidder_evidence: { document_id: 'doc_alpha_turnover', document_name: 'ca_turnover_certificate.pdf', page: 1, excerpt: 'Average Annual Turnover for FY 2022-23, 2023-24, 2024-25 is INR 6,50,00,000.' },
+          extracted_fact: { canonical_field: 'financial.average_annual_turnover', extracted_value: '65000000', confidence: 0.95 },
+          rule_investigation: { detection_method: 'NUMERIC_GTE', engine: 'DETERMINISTIC COMPLIANCE RULE ENGINE', evaluation: 'Observed 65,000,000 >= Expected 50,000,000. Verified PASS.' },
+          deep_audit_finding: { finding_id: 'find_alpha_01', title: 'Turnover Satisfied with 30% Headroom', severity: 'INFO' },
+        },
+      ],
       conflicts_detected: [
         {
-          clause_reference: "Clause 3.1 vs Clause 4.2",
-          conflict_type: "TURNOVER_THRESHOLD_AMBIGUITY",
-          description: "General tender financial requirement mandates ₹5.0 Cr turnover, but Clause 4.2 grants MSE exemption for Udyam-registered micro-enterprises.",
-          severity: "WARNING",
+          clause_reference: 'Clause 3.1 vs Clause 4.2',
+          conflict_type: 'TURNOVER_THRESHOLD_AMBIGUITY',
+          description: 'General tender financial requirement mandates ₹5.0 Cr turnover, but Clause 4.2 grants MSE exemption for Udyam-registered micro-enterprises.',
+          severity: 'WARNING',
         },
       ],
       policy_precedents: [
         {
-          clause_reference: "Demo Policy Fixture P-153 (Synthetic Procurement Policy — MSME Exemption)",
-          precedent_id: "SYN-FIXTURE-P153",
-          source: "Synthetic Procurement Policy Context • Demo Only",
+          clause_reference: 'Demo Policy Fixture P-153 (Synthetic Procurement Policy — MSME Exemption)',
+          precedent_id: 'SYN-FIXTURE-P153',
+          source: 'SYNTHETIC POLICY CONTEXT • DEMO ONLY',
           similarity_score: 0.94,
-          ruling_summary: "Procuring entities may not reject MSE bidders meeting technical parameters solely on failure of minimum turnover thresholds.",
+          ruling_summary: 'Procuring entities may not reject MSE bidders meeting technical parameters solely on failure of minimum turnover thresholds.',
         },
       ],
-      evidence_synthesis: "Bidder submitted valid Udyam Registration (UDYAM-MH-02-0049281) and CA turnover certificate. Deterministic statutory verification confirmed active GSTIN status. Exemption is verified and eligible for officer sign-off.",
+      evidence_synthesis: 'Bidder submitted valid Udyam Registration (UDYAM-DL-01-0012345) and CA turnover certificate. Deterministic statutory verification confirmed active GSTIN status. Exemption is verified and eligible for officer sign-off.',
       recommended_human_inquiries: [
-        "Confirm whether bidder qualifies under Micro or Small category on the National Udyam Portal.",
-        "Verify that manufacturing/service provision domain matches Tender Item Classification Schedule.",
+        'Confirm whether bidder qualifies under Micro or Small category on the National Udyam Portal.',
+        'Verify that manufacturing/service provision domain matches Tender Item Classification Schedule.',
       ],
-      disclaimer: "Advisory Analysis: Deep Audit provides investigation assistance. Final qualification decisions remain solely with the human procurement officer.",
+      disclaimer: 'Advisory Analysis: Deep Audit provides investigation assistance. Final qualification decisions remain solely with the human procurement officer.',
+    },
+    bidder_bharat_03: {
+      run_id: 'run_deep_audit_bharat_03',
+      started_at: '2026-08-20T14:10:00Z',
+      completed_at: '2026-08-20T14:10:18Z',
+      status: 'COMPLETED',
+      tender_id: 'tender_gem_2026_03',
+      bidder_id: 'bidder_bharat_03',
+      tender_title: 'Smart Solar Grid Micro-Inverter Deployment (Phase IV)',
+      bidder_name: 'Bharat Tech Solutions LLP',
       is_advisory: true,
+      advisory_disclaimer: 'Advisory Analysis Only: Deep Audit provides supplemental investigation assistance and anomaly detection. It does not alter compliance evaluations, mutate bidder statuses, or override procurement officer authority. Final decision remains with the human procurement officer.',
+      summary: 'Deep Audit investigation identified a significant 17.9% cross-document turnover discrepancy between the Audited Balance Sheet (₹9.20 Cr) and the Unaudited Financial Summary Statement (₹7.80 Cr, which falls below the mandatory ₹8.50 Cr threshold). Furthermore, Tender Clause 5.2 requires a direct OEM Manufacturer Authorization Form (MAF), but only a Tier-2 distributor authorization letter was submitted without direct manufacturer serial commitments. 2 unresolved questions require officer review.',
+      total_findings_count: 5,
+      high_priority_count: 2,
+      review_required_count: 2,
+      informational_count: 1,
+      unresolved_questions_count: 2,
+      conflicts_count: 1,
+      missing_evidence_count: 1,
+      workflow_trace: [
+        { stage_key: 'tender_intelligence', label: 'Tender Intelligence', status: 'COMPLETED', short_description: '3 mandatory criteria indexed: GSTIN, Turnover (₹8.50 Cr), Direct OEM Authorization.', findings_produced: 0, evidence_used: 3, duration_ms: 110 },
+        { stage_key: 'document_intelligence', label: 'Document Intelligence', status: 'COMPLETED', short_description: '2 documents parsed (Audited Balance Sheet, Unaudited Financial Summary). OCR confidence 94%.', findings_produced: 1, evidence_used: 2, duration_ms: 420 },
+        { stage_key: 'knowledge', label: 'Knowledge & Precedents', status: 'COMPLETED', short_description: '[SYNTHETIC POLICY CONTEXT • DEMO ONLY] Synthetic OEM authorization and MSE exemption guidelines retrieved.', findings_produced: 1, evidence_used: 2, duration_ms: 260 },
+        { stage_key: 'risk', label: 'Deterministic Risk & Anomalies', status: 'COMPLETED', short_description: 'Deterministic risk heuristics flagged 17.9% turnover discrepancy and Tier-2 reseller authorization gap.', findings_produced: 2, evidence_used: 4, duration_ms: 230 },
+        { stage_key: 'compliance', label: 'Compliance Synthesis', status: 'COMPLETED', short_description: 'Uncovered cross-document conflict between audited filing and internal summary statement.', findings_produced: 1, evidence_used: 3, duration_ms: 310 },
+        { stage_key: 'human_review', label: 'Advisory Summary for Officer', status: 'COMPLETED', short_description: 'Synthesized 2 critical advisory findings and 2 unresolved questions for procurement committee.', findings_produced: 0, evidence_used: 2, duration_ms: 110 },
+      ],
+      findings: [
+        {
+          finding_id: 'find_bharat_01',
+          category: 'CROSS_DOCUMENT_CONFLICT',
+          severity: 'HIGH',
+          title: 'Cross-Document Turnover Discrepancy (17.9% Variance)',
+          description: 'Audited Balance Sheet FY 2024-25 reports ₹9.20 Cr turnover (qualifying), but Unaudited Financial Summary Statement reports ₹7.80 Cr (below the mandatory ₹8.50 Cr threshold). Compliance matrix evaluated the Balance Sheet as PASS, but Deep Audit reveals conflicting internal figures.',
+          affected_fields: ['financial.average_annual_turnover'],
+          evidence_provenance: [
+            { document_name: 'Audited Balance Sheet (FY 2024-25)', page: 4, field: 'financial.average_annual_turnover', raw_value: '₹9.20 Cr (INR 92,000,000)' },
+            { document_name: 'Unaudited Financial Summary Statement', page: 1, field: 'financial.average_annual_turnover', raw_value: '₹7.80 Cr (INR 78,000,000)' },
+          ],
+          detection_method: 'CROSS_DOCUMENT_RECONCILIATION',
+          recommended_action: 'Seek written clarification and audited segment breakdown from statutory auditor to verify which figure governs.',
+        },
+        {
+          finding_id: 'find_bharat_02',
+          category: 'MISSING_EVIDENCE',
+          severity: 'HIGH',
+          title: 'Missing Direct OEM Manufacturer Authorization (Tier-2 Letter Provided)',
+          description: 'Clause 5.2 mandates direct authorization from the micro-inverter manufacturer. Bidder submitted an authorization issued by SolarDist Inc. (Tier-2 distributor) without direct manufacturer back-to-back warranty guarantee.',
+          affected_fields: ['credentials.oem_authorization'],
+          evidence_provenance: [
+            { document_name: 'SolarDist_Distributor_Letter.pdf', page: 1, field: 'credentials.oem_authorization', raw_value: 'SolarDist Partner Authorization Letter' },
+          ],
+          detection_method: 'CRITERIA_EVIDENCE_GAP_SCAN',
+          recommended_action: 'Issue formal clarification notice requesting direct OEM Manufacturer Authorization Form (MAF) as prescribed in Clause 5.2 Annexure IV.',
+        },
+        {
+          finding_id: 'find_bharat_03',
+          category: 'ANOMALY_SIGNAL',
+          severity: 'MEDIUM',
+          title: 'Deterministic Anomaly: Intra-Filing Turnover Contradiction',
+          description: 'Rule FINANCIAL_TURNOVER_DISCREPANCY triggered: variance between primary filing (₹9.20 Cr) and secondary summary (₹7.80 Cr) exceeds 15% safety tolerance.',
+          affected_fields: ['financial.average_annual_turnover'],
+          evidence_provenance: [
+            { document_name: 'Audited Balance Sheet', page: 4, field: 'financial.average_annual_turnover', raw_value: '92000000' },
+            { document_name: 'Unaudited Financial Summary', page: 1, field: 'financial.average_annual_turnover', raw_value: '78000000' },
+          ],
+          detection_method: 'DETERMINISTIC ANOMALY & RISK RULE ENGINE',
+          recommended_action: 'Review supporting trial balance and GST GSTR-3B filings to independently corroborate annual turnover.',
+        },
+        {
+          finding_id: 'find_bharat_04',
+          category: 'STATUTORY_MISMATCH',
+          severity: 'INFO',
+          title: 'Statutory Registry Verification Cleared (LLP Entity Structure)',
+          description: 'GSTIN, PAN, and Udyam registrations match claimed credentials. Corporate CIN is legitimately absent because bidder is an LLP registered under MCA LLPIN portal.',
+          affected_fields: ['tax.gstin', 'tax.pan', 'enterprise.udyam', 'corporate.cin'],
+          evidence_provenance: [
+            { document_name: 'gst_certificate.pdf', page: 1, field: 'tax.gstin', raw_value: '27AAGCB5678K1Z3' },
+          ],
+          detection_method: 'REGISTRY_CROSS_CHECK',
+          recommended_action: 'Confirm LLP partnership deed and designated partner authority.',
+        },
+        {
+          finding_id: 'find_bharat_05',
+          category: 'RAG_CONTEXT',
+          severity: 'INFO',
+          title: 'Advisory Precedent on OEM Authorization Legality',
+          description: 'General Financial Rules 2017 Rule 144(xi) and SECI Standard Bidding Documents stipulate that intermediary authorizations must carry explicit manufacturer endorsement.',
+          affected_fields: ['credentials.oem_authorization'],
+          evidence_provenance: [
+            { document_name: 'seci_solar_grid_rfp.pdf', page: 11, field: 'credentials.oem_authorization', raw_value: 'Clause 5.2' },
+          ],
+          detection_method: 'POLICY_PRECEDENT_RETRIEVAL',
+          recommended_action: 'Procurement officer should assess whether Tier-2 authorization can be accepted subject to direct OEM guarantee before contract award.',
+        },
+      ],
+      cross_document_conflicts: [
+        {
+          field_name: 'financial.average_annual_turnover',
+          document_a_id: 'doc_bharat_balance_sheet',
+          document_a_name: 'Audited Balance Sheet (FY 2024-25)',
+          document_a_page: 4,
+          document_a_value: '₹9.20 Cr (INR 92,000,000)',
+          document_b_id: 'doc_bharat_financial_summary',
+          document_b_name: 'Unaudited Financial Summary Statement',
+          document_b_page: 1,
+          document_b_value: '₹7.80 Cr (INR 78,000,000)',
+          difference_description: '17.9% variance detected between submitted documents. While the Audited Balance Sheet meets the tender threshold of ₹8.50 Cr, the Unaudited Financial Summary statement indicates ₹7.80 Cr, which is below the qualifying threshold.',
+          severity: 'HIGH',
+          officer_review_reason: 'Tender evaluation pipeline evaluated the Audited Balance Sheet and marked the rule as PASS. Deep Audit reveals conflicting internal figures. Procurement officer must seek written clarification regarding which turnover figure governs.',
+        },
+      ],
+      missing_evidence: [
+        {
+          item_id: 'me_bharat_01',
+          requirement_title: 'Direct OEM Manufacturer Authorization Form (MAF)',
+          requirement_description: 'Clause 5.2 mandates direct authorization from the micro-inverter manufacturer guaranteeing supply and warranty.',
+          status: 'WEAK',
+          bidder_evidence_status: 'Tier-2 distributor letter submitted (SolarDist Inc.); missing direct manufacturer OEM authorization with tender-specific serial commitment.',
+          recommended_action: 'Issue clarification notice requesting direct OEM authorization under Clause 5.2 Annexure IV.',
+        },
+      ],
+      statutory_investigations: [
+        { identifier_type: 'GSTIN', identifier_value: '27AAGCB5678K1Z3', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'VERIFIED', document_derived_value: '27AAGCB5678K1Z3', external_derived_value: '27AAGCB5678K1Z3 (Active Taxpayer)', conflict_status: 'NO_CONFLICT', details: 'Active regular taxpayer under Maharashtra GST ward 02.' },
+        { identifier_type: 'PAN', identifier_value: 'AAGCB5678K', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'VERIFIED', document_derived_value: 'AAGCB5678K', external_derived_value: 'AAGCB5678K (Valid - LLP/Firm)', conflict_status: 'NO_CONFLICT', details: 'Valid LLP PAN registered with Income Tax Department.' },
+        { identifier_type: 'CIN', identifier_value: 'Not Applicable (LLP)', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'CLEARED', document_derived_value: 'Not Applicable', external_derived_value: 'LLP Registered under MCA LLPIN portal', conflict_status: 'NO_CONFLICT', details: 'Entity is registered as a Limited Liability Partnership (LLPIN: AAG-5678); corporate CIN is not applicable.' },
+        { identifier_type: 'UDYAM', identifier_value: 'UDYAM-MH-02-0054321', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'VERIFIED', document_derived_value: 'UDYAM-MH-02-0054321', external_derived_value: 'UDYAM-MH-02-0054321 (Small Enterprise)', conflict_status: 'NO_CONFLICT', details: 'Small Enterprise in Solar Equipment & Clean Energy Systems.' },
+        { identifier_type: 'EPFO', identifier_value: 'Not Claimed / Unregistered', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'UNVERIFIED', document_derived_value: null, external_derived_value: null, conflict_status: 'UNVERIFIED', details: 'No EPFO establishment code provided in bidder submission pack.' },
+        { identifier_type: 'ESIC', identifier_value: 'Not Claimed / Unregistered', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'UNVERIFIED', document_derived_value: null, external_derived_value: null, conflict_status: 'UNVERIFIED', details: 'No ESIC registration code provided in bidder submission pack.' },
+        { identifier_type: 'BLACKLIST', identifier_value: 'Bharat Tech Solutions LLP', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'CLEARED', document_derived_value: 'Bharat Tech Solutions LLP', external_derived_value: 'No Debarment Record', conflict_status: 'NO_CONFLICT', details: 'Clean across CPPP, GeM Incident Management, and Central Debarment lists.' },
+      ],
+      risk_anomalies: [
+        {
+          signal_id: 'sig_bharat_01',
+          rule_name: 'FINANCIAL_TURNOVER_DISCREPANCY',
+          engine_label: 'DETERMINISTIC ANOMALY & RISK RULE ENGINE',
+          input_values: ['Audited Balance Sheet: ₹9.20 Cr', 'Unaudited Summary: ₹7.80 Cr', 'Mandatory Threshold: ₹8.50 Cr'],
+          why_triggered: 'Turnover variance between primary filing (₹9.20 Cr) and secondary summary (₹7.80 Cr) is 17.9%, exceeding 15% threshold. Secondary figure breaches minimum threshold.',
+          severity: 'HIGH',
+          supporting_evidence: 'Audited Balance Sheet (Page 4) vs Unaudited Financial Summary (Page 1)',
+        },
+        {
+          signal_id: 'sig_bharat_02',
+          rule_name: 'INDIRECT_OEM_AUTHORIZATION_CHAIN',
+          engine_label: 'DETERMINISTIC ANOMALY & RISK RULE ENGINE',
+          input_values: ['SolarDist Inc. Authorization Letter', 'OEM: InvertoSolar Technologies'],
+          why_triggered: 'Authorization issued by intermediary reseller without explicit direct back-to-back OEM warranty commitment.',
+          severity: 'MEDIUM',
+          supporting_evidence: 'Document credentials.oem_authorization (Page 1)',
+        },
+      ],
+      rag_investigations: [
+        {
+          query: 'What are the tender conditions for OEM authorization letters?',
+          direct_tender_evidence: 'Clause 5.2: Bidders must furnish Manufacturer Authorization Form directly signed by the micro-inverter OEM guaranteeing 10-year replacement warranty and supply commitment.',
+          related_policy_context: '[SYNTHETIC POLICY CONTEXT • DEMO ONLY] Synthetic Precedent Note: Sub-contracting and intermediary authorizations must be authenticated by the primary manufacturer to ensure product warranty enforceability.',
+          citation_document: 'seci_solar_grid_rfp.pdf',
+          citation_page: 11,
+          advisory_result: 'ADVISORY_CONTEXT',
+          is_advisory: true,
+        },
+        {
+          query: 'Can MSME turnover exemption override Clause 2.4 turnover criteria for solar EPC works?',
+          direct_tender_evidence: 'Clause 2.4 sets mandatory ₹8.50 Cr turnover without unconditional MSE waiver.',
+          related_policy_context: '[SYNTHETIC POLICY CONTEXT • DEMO ONLY] Synthetic SECI Policy Guidelines Note: In complex infrastructure procurement involving grid stability, procuring authority may restrict MSE turnover waivers where public safety is implicated.',
+          citation_document: 'seci_solar_grid_rfp.pdf',
+          citation_page: 4,
+          advisory_result: 'ADVISORY_CONTEXT',
+          is_advisory: true,
+        },
+      ],
+      unresolved_questions: [
+        {
+          question_id: 'uq_bharat_01',
+          question: 'Can the officer verify whether the unaudited ₹7.80 Cr statement reflects non-solar revenue exclusions or an accounting discrepancy?',
+          background: 'Audited Balance sheet reports ₹9.20 Cr total turnover, while Unaudited Summary statement reports ₹7.80 Cr (below the ₹8.50 Cr threshold).',
+          reason_cannot_auto_resolve: 'Requires commercial intent verification and CA reconciliation note.',
+          officer_prompt: 'ARGUS cannot safely resolve this automatically. OFFICER REVIEW REQUIRED.',
+        },
+        {
+          question_id: 'uq_bharat_02',
+          question: 'Is the Tier-2 distributor authorization supported by an authentic back-to-back OEM manufacturer commitment?',
+          background: 'Bidder submitted distributor letter from SolarDist Inc. Tender Clause 5.2 specifies direct OEM authorization.',
+          reason_cannot_auto_resolve: 'Distributor reseller authorization legality requires officer verification of OEM warranty backing.',
+          officer_prompt: 'ARGUS cannot safely resolve this automatically. OFFICER REVIEW REQUIRED.',
+        },
+      ],
+      recommended_actions: [
+        {
+          action_id: 'rec_bharat_01',
+          action_type: 'REQUEST_CLARIFICATION',
+          title: 'Seek Formal Turnover Reconciliation from Auditor',
+          description: 'Require bidder to furnish a CA certificate explaining the ₹1.40 Cr variance between Audited Balance Sheet (₹9.20 Cr) and Financial Summary (₹7.80 Cr).',
+          target_document: 'Audited Balance Sheet (FY 2024-25)',
+          target_page: 4,
+          is_recommendation_only: true,
+        },
+        {
+          action_id: 'rec_bharat_02',
+          action_type: 'REQUEST_DOCUMENT',
+          title: 'Demand Direct OEM Manufacturer Authorization Form',
+          description: 'Require bidder to submit OEM Manufacturer Authorization directly from InvertoSolar Technologies as mandated in Clause 5.2 Annexure IV.',
+          target_document: 'seci_solar_grid_rfp.pdf',
+          target_page: 11,
+          is_recommendation_only: true,
+        },
+        {
+          action_id: 'rec_bharat_03',
+          action_type: 'MANUAL_VERIFY',
+          title: 'Review MCA LLPIN Corporate Status',
+          description: 'Verify designated partners and active status on MCA portal under LLPIN AAG-5678.',
+          is_recommendation_only: true,
+        },
+      ],
+      evidence_chains: [
+        {
+          chain_id: 'chain_bharat_01',
+          tender_requirement: { id: 'req_c02', clause: 'Clause 2.4', text: 'Annual turnover of INR 8.5 Crores or higher.' },
+          bidder_evidence: { document_id: 'doc_bharat_balance_sheet', document_name: 'Audited Balance Sheet (FY 2024-25)', page: 4, excerpt: 'Total Revenue from Operations: ₹9,20,45,000' },
+          extracted_fact: { canonical_field: 'financial.average_annual_turnover', extracted_value: '92000000', confidence: 0.95 },
+          rule_investigation: { detection_method: 'CROSS_DOCUMENT_RECONCILIATION', engine: 'DETERMINISTIC ANOMALY & RISK RULE ENGINE', evaluation: 'Conflicted by secondary document Unaudited Financial Summary showing ₹7.80 Cr (17.9% drop)' },
+          deep_audit_finding: { finding_id: 'find_bharat_01', title: 'Cross-Document Turnover Discrepancy (17.9% Variance)', severity: 'HIGH' },
+        },
+        {
+          chain_id: 'chain_bharat_02',
+          tender_requirement: { id: 'req_c03', clause: 'Clause 5.2', text: 'Original Equipment Manufacturer (OEM) authorization certificate required.' },
+          bidder_evidence: { document_id: 'doc_bharat_dist_letter', document_name: 'SolarDist_Distributor_Letter.pdf', page: 1, excerpt: 'SolarDist confirms Bharat Tech Solutions is an authorized Tier-2 reseller.' },
+          extracted_fact: { canonical_field: 'credentials.oem_authorization', extracted_value: 'TIER_2_DISTRIBUTOR_LETTER', confidence: 0.88 },
+          rule_investigation: { detection_method: 'CRITERIA_EVIDENCE_GAP_SCAN', engine: 'DETERMINISTIC ANOMALY & RISK RULE ENGINE', evaluation: 'Missing direct OEM Manufacturer Authorization Form with manufacturer seal' },
+          deep_audit_finding: { finding_id: 'find_bharat_02', title: 'Missing Direct OEM Manufacturer Authorization', severity: 'HIGH' },
+        },
+      ],
+      conflicts_detected: [
+        {
+          clause_reference: 'Audited Balance Sheet (p.4) vs Financial Summary (p.1)',
+          conflict_type: 'FINANCIAL_TURNOVER_DISCREPANCY',
+          description: 'Audited Balance Sheet reports ₹9.20 Cr turnover, but Unaudited Financial Summary Statement reports ₹7.80 Cr (below ₹8.50 Cr threshold).',
+          severity: 'CRITICAL',
+        },
+      ],
+      policy_precedents: [
+        {
+          clause_reference: 'Demo Policy Fixture P-144XI (Synthetic Procurement Precedent — OEM Authorization)',
+          precedent_id: 'SYN-FIXTURE-P144XI',
+          source: 'SYNTHETIC POLICY CONTEXT • DEMO ONLY',
+          similarity_score: 0.91,
+          ruling_summary: 'Intermediary distributor authorizations must carry direct manufacturer endorsement to ensure product warranty enforceability.',
+        },
+      ],
+      evidence_synthesis: 'Deep Audit identified a 17.9% cross-document conflict on turnover and an indirect Tier-2 distributor authorization where direct OEM MAF is required. Final qualification determination requires officer review.',
+      recommended_human_inquiries: [
+        'Require statutory auditor reconciliation between audited ₹9.20 Cr and unaudited ₹7.80 Cr turnover figures.',
+        'Obtain authentic back-to-back OEM manufacturer authorization letter directly from InvertoSolar Technologies.',
+      ],
+      disclaimer: 'Advisory Analysis Only: Deep Audit provides supplemental investigation assistance. It does not alter deterministic compliance evaluations or override human officer authority.',
     },
   },
   auditEvents: [
@@ -2295,13 +2729,19 @@ export const demoStore = {
   recordDeepAuditSynthesis(bidderId: string, synthesis: DeepAuditSynthesis): void {
     const state = loadFromStorage();
     if (!state.deepAuditSyntheses) state.deepAuditSyntheses = {};
-    state.deepAuditSyntheses[bidderId] = synthesis;
+    state.deepAuditSyntheses[bidderId] = {
+      ...synthesis,
+      is_advisory: true,
+      advisory_disclaimer: synthesis.advisory_disclaimer || 'Advisory Analysis Only: Deep Audit provides supplemental investigation assistance and anomaly detection. It does not alter compliance evaluations, mutate bidder statuses, or override procurement officer authority. Final decision remains with the human procurement officer.',
+    };
 
     // Strict Authority Invariant: Advisory investigation NEVER mutates bidder status!
+    const conflictsCount = synthesis.conflicts_count ?? (synthesis.cross_document_conflicts?.length ?? (synthesis.conflicts_detected?.length ?? 0));
+    const precedentsCount = synthesis.policy_precedents?.length ?? (synthesis.rag_investigations?.length ?? 0);
     const evt: AuditEventRead = {
       id: `evt_${Date.now()}_deep_audit`,
       job_id: `job_deep_audit_${bidderId}`,
-      stage: 'DEEP_AUDIT',
+      stage: 'COMPLIANCE',
       status: 'COMPLETED',
       progress: 100,
       action: 'DEEP_AUDIT_COMPLETED',
@@ -2310,15 +2750,15 @@ export const demoStore = {
       mode: 'DEMO',
       source: 'DEMO_STORE / SYNTHETIC',
       bidder_id: bidderId,
-      target_url: `/workspace/bidders/${bidderId}/review?mode=demo`,
-      message: `Autonomous advisory Deep Audit completed for bidder (${synthesis.conflicts_detected.length} conflicts analyzed).`,
+      target_url: `/workspace/bidders/${bidderId}/deep-audit?mode=demo`,
+      message: `Autonomous advisory Deep Audit completed for bidder (${conflictsCount} conflicts analyzed).`,
       timestamp: new Date().toISOString(),
       payload_json: {
         bidder_id: bidderId,
         is_advisory: true,
-        conflicts_count: synthesis.conflicts_detected.length,
-        precedents_count: synthesis.policy_precedents.length,
-        summary: synthesis.summary,
+        conflicts_count: conflictsCount,
+        precedents_count: precedentsCount,
+        summary: synthesis.summary || synthesis.summary_text,
       },
     };
     state.auditEvents = [evt, ...state.auditEvents];
@@ -2522,5 +2962,144 @@ export const demoStore = {
         ? expReq.expected_value
         : undefined,
     });
+  },
+
+  // -------------------------------------------------------------------------
+  // DEEP AUDIT INVESTIGATION LAYER (STRICTLY ADVISORY - 0 DECISION MUTATIONS)
+  // -------------------------------------------------------------------------
+  getDeepAuditSynthesis(bidderId: string): DeepAuditSynthesis | null {
+    const state = loadFromStorage();
+    return state.deepAuditSyntheses?.[bidderId] || null;
+  },
+
+  async runDeepAudit(bidderId: string): Promise<DeepAuditSynthesis> {
+    const state = loadFromStorage();
+    const existing = state.deepAuditSyntheses?.[bidderId];
+    const now = new Date().toISOString();
+
+    if (existing) {
+      // Return canonical synthesis with updated timestamp and audit log
+      const updated: DeepAuditSynthesis = {
+        ...existing,
+        completed_at: now,
+        is_advisory: true,
+      };
+      this.recordDeepAuditSynthesis(bidderId, updated);
+
+      this.addAuditEvent({
+        id: `evt_deep_audit_${bidderId}_${Date.now()}`,
+        job_id: `job_deep_audit_${bidderId}`,
+        stage: 'COMPLIANCE',
+        status: 'COMPLETED',
+        progress: 100,
+        action: 'DEEP_AUDIT_COMPLETED',
+        entity_type: 'BIDDER',
+        entity_id: bidderId,
+        mode: 'DEMO',
+        source: 'DEMO_STORE / SYNTHETIC',
+        target_url: `/workspace/bidders/${bidderId}/deep-audit?mode=demo`,
+        message: `Autonomous advisory deep audit completed for bidder. ${existing.total_findings_count ?? (existing.findings?.length || 0)} findings produced.`,
+        timestamp: now,
+      });
+
+      return updated;
+    }
+
+    // Dynamic fallback for newly added demo bidder
+    let foundBidder: BidderRead | null = null;
+    let foundTenderId: string | null = null;
+    for (const [tId, bidders] of Object.entries(state.bidders)) {
+      const match = bidders.find((b) => b.id === bidderId);
+      if (match) {
+        foundBidder = match;
+        foundTenderId = tId;
+        break;
+      }
+    }
+
+    const bidderName = foundBidder?.bidder_name || 'Bidder Entity';
+    const tender = foundTenderId ? this.getTender(foundTenderId) : null;
+    const tenderTitle = tender?.title || 'Tender Assessment';
+
+    const dynamicSynthesis: DeepAuditSynthesis = {
+      run_id: `run_deep_audit_${bidderId}_${Date.now()}`,
+      started_at: now,
+      completed_at: now,
+      status: 'COMPLETED',
+      tender_id: foundTenderId || 'tender_unknown',
+      bidder_id: bidderId,
+      tender_title: tenderTitle,
+      bidder_name: bidderName,
+      is_advisory: true,
+      advisory_disclaimer: 'Advisory Analysis Only: Deep Audit provides supplemental investigation assistance and anomaly detection. It does not alter compliance evaluations, mutate bidder statuses, or override procurement officer authority. Final decision remains with the human procurement officer.',
+      summary: `Autonomous advisory investigation completed for ${bidderName}. Scanned registry filings, financial ratios, and submitted documentation. Deterministic rule engine found 0 fraud signals. Procurement officer should review extracted evidence before final award.`,
+      total_findings_count: 1,
+      high_priority_count: 0,
+      review_required_count: 0,
+      informational_count: 1,
+      unresolved_questions_count: 1,
+      conflicts_count: 0,
+      missing_evidence_count: 0,
+      workflow_trace: [
+        { stage_key: 'tender_intelligence', label: 'Tender Intelligence', status: 'COMPLETED', short_description: 'Criteria indexed.', findings_produced: 0, evidence_used: 2, duration_ms: 80 },
+        { stage_key: 'document_intelligence', label: 'Document Intelligence', status: 'COMPLETED', short_description: 'Filings parsed with OCR.', findings_produced: 0, evidence_used: 1, duration_ms: 190 },
+        { stage_key: 'knowledge', label: 'Knowledge & Precedents', status: 'COMPLETED', short_description: 'Procurement rules referenced.', findings_produced: 0, evidence_used: 1, duration_ms: 110 },
+        { stage_key: 'risk', label: 'Deterministic Risk & Anomalies', status: 'COMPLETED', short_description: 'Deterministic risk heuristics scanned.', findings_produced: 0, evidence_used: 2, duration_ms: 95 },
+        { stage_key: 'compliance', label: 'Compliance Synthesis', status: 'COMPLETED', short_description: 'Advisory synthesis reconciled.', findings_produced: 1, evidence_used: 2, duration_ms: 140 },
+        { stage_key: 'human_review', label: 'Advisory Summary for Officer', status: 'COMPLETED', short_description: 'Synthesis compiled for officer review.', findings_produced: 0, evidence_used: 1, duration_ms: 60 },
+      ],
+      findings: [
+        {
+          finding_id: `find_${bidderId}_01`,
+          category: 'STATUTORY_MISMATCH',
+          severity: 'INFO',
+          title: 'Statutory Verification Cleared',
+          description: `Bidder ${bidderName} has active registered credentials with no adverse flags detected.`,
+          affected_fields: ['tax.gstin'],
+          evidence_provenance: [],
+          detection_method: 'REGISTRY_CROSS_CHECK',
+          recommended_action: 'Proceed to standard evaluation.',
+        },
+      ],
+      cross_document_conflicts: [],
+      missing_evidence: [],
+      statutory_investigations: [
+        { identifier_type: 'GSTIN', identifier_value: foundBidder?.gstin || '27XXXXX0000X1Z1', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'VERIFIED', conflict_status: 'NO_CONFLICT', details: 'Active regular taxpayer in demo registry.' },
+        { identifier_type: 'PAN', identifier_value: foundBidder?.pan || 'ABCDE1234F', provider_mode: 'DEMO_SYNTHETIC', verification_result: 'VERIFIED', conflict_status: 'NO_CONFLICT', details: 'Valid PAN record in demo database.' },
+        { identifier_type: 'BLACKLIST', identifier_value: bidderName, provider_mode: 'DEMO_SYNTHETIC', verification_result: 'CLEARED', conflict_status: 'NO_CONFLICT', details: 'Clean across debarment lists.' },
+      ],
+      risk_anomalies: [
+        { signal_id: `sig_${bidderId}_01`, rule_name: 'BASELINE_ANOMALY_SCAN', engine_label: 'DETERMINISTIC ANOMALY & RISK RULE ENGINE', input_values: [bidderName], why_triggered: 'Baseline scan: 0 critical variance flags identified.', severity: 'INFO', supporting_evidence: 'Demo bidder record' },
+      ],
+      rag_investigations: [],
+      unresolved_questions: [
+        { question_id: `uq_${bidderId}_01`, question: `Are all annexures submitted by ${bidderName} countersigned by an authorized signatory?`, background: 'Verification of digital/wet signatures against board resolution or power of attorney.', reason_cannot_auto_resolve: 'Signature authority verification requires procurement committee inspection.', officer_prompt: 'ARGUS cannot safely resolve this automatically. OFFICER REVIEW REQUIRED.' },
+      ],
+      recommended_actions: [
+        { action_id: `rec_${bidderId}_01`, action_type: 'MANUAL_VERIFY', title: 'Verify Authorized Signatory POA', description: 'Check power of attorney or board resolution for signatory representation.', is_recommendation_only: true },
+      ],
+      evidence_chains: [],
+      disclaimer: 'Advisory Analysis Only: Deep Audit provides supplemental investigation assistance and anomaly detection. It does not alter compliance evaluations, mutate bidder statuses, or override procurement officer authority. Final decision remains with the human procurement officer.',
+    };
+
+    this.recordDeepAuditSynthesis(bidderId, dynamicSynthesis);
+
+    this.addAuditEvent({
+      id: `evt_deep_audit_${bidderId}_${Date.now()}`,
+      job_id: `job_deep_audit_${bidderId}`,
+      stage: 'COMPLIANCE',
+      status: 'COMPLETED',
+      progress: 100,
+      action: 'DEEP_AUDIT_COMPLETED',
+      entity_type: 'BIDDER',
+      entity_id: bidderId,
+      mode: 'DEMO',
+      source: 'DEMO_STORE / SYNTHETIC',
+      target_url: `/workspace/bidders/${bidderId}/deep-audit?mode=demo`,
+      message: `Autonomous advisory deep audit completed for ${bidderName}. 1 finding produced.`,
+      timestamp: now,
+    });
+
+    return dynamicSynthesis;
   },
 };

@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { 
   FileText, CheckCircle, AlertTriangle, XCircle, ArrowLeft, 
-  RefreshCw, Filter, Eye, AlertCircle, ShieldCheck
+  RefreshCw, Filter, Eye, AlertCircle, ShieldCheck, FileSearch
 } from "lucide-react";
 import { api } from "@/services/api";
 import { demoStore } from "@/services/demo-store";
@@ -182,10 +182,16 @@ export default function ComplianceMatrixPage() {
           <FileText className="w-3.5 h-3.5" /> Compliance Matrix
         </Link>
         <Link
+          href={`/workspace/bidders/${bidderId}/deep-audit${querySuffix}`}
+          className="pb-2.5 font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5"
+        >
+          <FileSearch className="w-3.5 h-3.5" /> Deep Audit
+        </Link>
+        <Link
           href={`/workspace/bidders/${bidderId}/review${querySuffix}`}
           className="pb-2.5 font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5"
         >
-          Human Officer Review
+          <ShieldCheck className="w-3.5 h-3.5" /> Human Officer Review
         </Link>
         <Link
           href={`/workspace/bidders/${bidderId}/report${querySuffix}`}

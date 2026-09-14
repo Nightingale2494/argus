@@ -796,3 +796,175 @@ class ErrorDetails(BaseModel):
 
 class APIErrorResponse(BaseModel):
     error: ErrorDetails
+
+
+# ---------------------------------------------------------------------------
+# DEEP AUDIT INVESTIGATION LAYER SCHEMAS
+# ---------------------------------------------------------------------------
+
+class FindingSeverity(str, Enum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    INFO = "INFO"
+
+
+class FindingCategory(str, Enum):
+    CROSS_DOCUMENT_CONFLICT = "CROSS_DOCUMENT_CONFLICT"
+    MISSING_EVIDENCE = "MISSING_EVIDENCE"
+    TENDER_BIDDER_MISMATCH = "TENDER_BIDDER_MISMATCH"
+    STATUTORY_MISMATCH = "STATUTORY_MISMATCH"
+    ANOMALY_SIGNAL = "ANOMALY_SIGNAL"
+    RAG_CONTEXT = "RAG_CONTEXT"
+    DATE_CONFLICT = "DATE_CONFLICT"
+    VALUE_CONFLICT = "VALUE_CONFLICT"
+    DOCUMENT_INCONSISTENCY = "DOCUMENT_INCONSISTENCY"
+    UNRESOLVED_QUESTION = "UNRESOLVED_QUESTION"
+
+
+class DeepAuditFinding(BaseModel):
+    finding_id: str
+    category: FindingCategory
+    severity: FindingSeverity
+    title: str
+    description: str
+    affected_field: str
+    tender_requirement: str
+    bidder_value: str | None = None
+    evidence: str | None = None
+    source_document: str | None = None
+    page: int | None = None
+    rule_or_detection_method: str
+    recommended_action: str
+    status: str = "OPEN"
+
+
+class CrossDocumentConflictItem(BaseModel):
+    conflict_id: str
+    field: str
+    tender_requirement: str
+    documents_involved: list[dict[str, Any]] = Field(default_factory=list)
+    status: str = "CONFLICT_DETECTED"
+    compliance_engine_choice: str | None = None
+    officer_review_reason: str
+
+
+class MissingEvidenceItem(BaseModel):
+    item_id: str
+    requirement_title: str
+    requirement_description: str
+    status: str = "MISSING"  # MISSING, AMBIGUOUS, EXPIRED, WEAK, INCOMPLETE
+    bidder_evidence_status: str
+    recommended_action: str
+
+
+class StatutoryInvestigationItem(BaseModel):
+    identifier_type: str  # GSTIN, PAN, CIN, UDYAM, EPFO, ESIC, BLACKLIST
+    identifier_value: str
+    provider_mode: str  # LIVE, CONFIGURED_UNVERIFIED, DEMO_SYNTHETIC
+    verification_result: str  # VERIFIED, MISMATCH, UNVERIFIED, CLEARED, FLAGGED
+    document_derived_value: str | None = None
+    external_derived_value: str | None = None
+    conflict_status: str = "NO_CONFLICT"  # NO_CONFLICT, CONFLICT_DETECTED, UNVERIFIED
+    details: str
+
+
+class RiskAnomalyItem(BaseModel):
+    signal_id: str
+    rule_name: str
+    engine_label: str = "DETERMINISTIC ANOMALY & RISK RULE ENGINE"
+    input_values: list[str] = Field(default_factory=list)
+    why_triggered: str
+    severity: FindingSeverity = FindingSeverity.MEDIUM
+    supporting_evidence: str
+
+
+class RAGInvestigationItem(BaseModel):
+    query: str
+    direct_tender_evidence: str | None = None
+    related_policy_context: str | None = None
+    citation_document: str | None = None
+    citation_page: int | None = None
+    advisory_result: str
+    is_advisory: bool = True
+
+
+class UnresolvedQuestionItem(BaseModel):
+    question_id: str
+    question: str
+    background: str
+    reason_cannot_auto_resolve: str = "ARGUS cannot safely resolve this automatically. OFFICER REVIEW REQUIRED."
+    officer_prompt: str
+
+
+class RecommendedActionItem(BaseModel):
+    action_id: str
+    action_type: str  # MANUAL_VERIFY, REQUEST_CLARIFICATION, REQUEST_DOCUMENT, REVIEW_CONFLICT, CONFIRM_EXEMPTION, INSPECT_PAGE
+    title: str
+    description: str
+    target_document: str | None = None
+    target_page: int | None = None
+    is_recommendation_only: bool = True
+
+
+class EvidenceChainItem(BaseModel):
+    chain_id: str
+    tender_requirement: dict[str, Any]
+    bidder_evidence: dict[str, Any]
+    extracted_fact: dict[str, Any]
+    rule_investigation: dict[str, Any]
+    deep_audit_finding: dict[str, Any]
+
+
+class WorkflowStageTraceItem(BaseModel):
+    stage_key: str
+    label: str
+    status: str  # COMPLETED, RUNNING, PENDING, INTERRUPTED
+    short_description: str
+    findings_produced: int = 0
+    evidence_used: int = 0
+    duration_ms: int | None = None
+
+
+class DeepAuditSynthesis(BaseModel):
+    run_id: str
+    started_at: str
+    completed_at: str | None = None
+    status: str = "COMPLETED"
+    tender_id: str
+    bidder_id: str
+    tender_title: str | None = None
+    bidder_name: str | None = None
+    is_advisory: bool = True
+    advisory_disclaimer: str = "ADVISORY INVESTIGATION. HUMAN DECISION REQUIRED."
+    summary_text: str
+
+    # Metrics
+    total_findings_count: int = 0
+    high_priority_count: int = 0
+    review_required_count: int = 0
+    informational_count: int = 0
+    unresolved_questions_count: int = 0
+    conflicts_count: int = 0
+    missing_evidence_count: int = 0
+
+    # Structured sections
+    workflow_trace: list[WorkflowStageTraceItem] = Field(default_factory=list)
+    findings: list[DeepAuditFinding] = Field(default_factory=list)
+    cross_document_conflicts: list[CrossDocumentConflictItem] = Field(default_factory=list)
+    missing_evidence: list[MissingEvidenceItem] = Field(default_factory=list)
+    statutory_investigations: list[StatutoryInvestigationItem] = Field(default_factory=list)
+    risk_anomalies: list[RiskAnomalyItem] = Field(default_factory=list)
+    rag_investigations: list[RAGInvestigationItem] = Field(default_factory=list)
+    unresolved_questions: list[UnresolvedQuestionItem] = Field(default_factory=list)
+    recommended_actions: list[RecommendedActionItem] = Field(default_factory=list)
+    evidence_chains: list[EvidenceChainItem] = Field(default_factory=list)
+
+    # Legacy backward-compatibility fields
+    summary: str | None = None
+    conflicts_detected: list[Any] = Field(default_factory=list)
+    policy_citations: list[dict[str, Any]] = Field(default_factory=list)
+    langgraph_trace: list[str] = Field(default_factory=list)
+    langgraph_interrupted: bool = False
+    langgraph_reasons: list[str] = Field(default_factory=list)
+

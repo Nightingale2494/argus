@@ -20,6 +20,23 @@ def main() -> None:
         from app.main import app
         schema = app.openapi()
         out_path = os.path.join(REPO_ROOT, "contracts", "openapi.json")
+        is_check = "--check" in sys.argv
+
+        if is_check:
+            if not os.path.exists(out_path):
+                print(f"ERROR: {out_path} does not exist. Run without --check to generate it.", file=sys.stderr)
+                sys.exit(1)
+            with open(out_path, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+            # Compare normalized JSON
+            current_str = json.dumps(schema, indent=2, sort_keys=True)
+            existing_str = json.dumps(existing, indent=2, sort_keys=True)
+            if current_str != existing_str:
+                print("ERROR: OpenAPI schema drift detected! Run 'python scripts/export_openapi.py' to update.", file=sys.stderr)
+                sys.exit(1)
+            print(f"PASS: OpenAPI schema matches {out_path} (0 drift, {len(schema.get('paths', {}))} endpoints)")
+            return
+
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(schema, f, indent=2)

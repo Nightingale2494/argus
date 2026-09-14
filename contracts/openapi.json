@@ -1639,7 +1639,7 @@
           "RAG Evidence Retrieval"
         ],
         "summary": "Explain Policy Or Clause",
-        "description": "Provides advisory policy explanation and clause intelligence for procurement officers.\n\nStrict Invariant:\n- This endpoint is purely advisory.\n- Does NOT mutate any compliance state, bidder status, or qualification outcome.\n- All citations are scoped strictly to the specified tender_id or public policy documents.",
+        "description": "Provides advisory policy explanation and clause intelligence for procurement officers.\n\nStrict Invariants:\n- Purely advisory: does NOT mutate compliance state, bidder status, or qualification outcome.\n- All citations scoped strictly to specified tender_id or public policy documents.\n- direct_answer synthesized ONLY from validated direct_citations.",
         "operationId": "explain_policy_or_clause_api_v1_rag_explain_post",
         "requestBody": {
           "content": {

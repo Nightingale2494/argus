@@ -5,13 +5,12 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { 
   CheckSquare, ArrowLeft, RefreshCw, CheckCircle, XCircle, 
-  AlertTriangle, AlertCircle
+  AlertTriangle, AlertCircle, FileSearch, FileText
 } from "lucide-react";
 import { api } from "@/services/api";
 import { demoStore } from "@/services/demo-store";
 import { BidderRead, ComplianceMatrixRow, HumanDecisionCreate, HumanDecisionRead } from "@/services/types";
 import { SessionRequired } from "@/components/ui/SessionRequired";
-import { DeepAuditPanel } from "@/components/ui/DeepAuditPanel";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function HumanReviewPage() {
@@ -191,7 +190,13 @@ export default function HumanReviewPage() {
           href={`/workspace/bidders/${bidderId}/matrix${querySuffix}`}
           className="pb-2.5 font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5"
         >
-          Compliance Matrix
+          <FileText className="w-3.5 h-3.5" /> Compliance Matrix
+        </Link>
+        <Link
+          href={`/workspace/bidders/${bidderId}/deep-audit${querySuffix}`}
+          className="pb-2.5 font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5"
+        >
+          <FileSearch className="w-3.5 h-3.5" /> Deep Audit
         </Link>
         <Link
           href={`/workspace/bidders/${bidderId}/review${querySuffix}`}
@@ -274,12 +279,25 @@ export default function HumanReviewPage() {
         )}
       </div>
 
-      {/* Advisory Deep Audit Panel (LangGraph Autonomous Investigation) */}
-      <DeepAuditPanel
-        bidderId={bidderId}
-        bidderName={bidder?.bidder_name}
-        isDemo={isDemo}
-      />
+      {/* Advisory Deep Audit Investigation Banner */}
+      <div className="rounded-xl border border-indigo-900/40 bg-indigo-950/20 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <FileSearch className="w-5 h-5 text-indigo-400" />
+            <h3 className="font-semibold text-indigo-200 text-sm">Autonomous Advisory Deep Audit Available</h3>
+          </div>
+          <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
+            Deep Audit investigates cross-document turnover conflicts, missing OEM authorizations, and statutory inconsistencies to assist your official determination.
+          </p>
+        </div>
+        <Link
+          href={`/workspace/bidders/${bidderId}/deep-audit${querySuffix}`}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap self-start sm:self-center shadow-md shadow-indigo-950/30"
+        >
+          <FileSearch className="w-3.5 h-3.5" />
+          <span>Open Deep Audit Workspace →</span>
+        </Link>
+      </div>
 
       {/* Decision Submission Form */}
       <div className="p-6 rounded-xl bg-zinc-900/60 border border-zinc-800/80 space-y-4">
