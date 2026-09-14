@@ -493,3 +493,66 @@ def test_rag_explain_domain_mismatch_aircraft_engines():
         assert len(data["related_citations"]) == 0
         assert "could not find an indexed clause that directly answers this question" in data["direct_answer"]
 
+
+def test_rag_explain_emd_formatting_artifact_rejection_and_exact_extraction():
+    """Verify EMD query selects the exact EMD amount sentence and never returns markdown/banner separators."""
+    client = TestClient(app)
+    headers = get_auth_headers(role=UserRole.PROCUREMENT_OFFICER)
+
+    chunk_banner_and_emd = EvidenceRead(
+        id="chunk-banner-emd",
+        entity_type="document_chunk",
+        entity_id="doc-tender-gem",
+        snippet="""# ==============================================================================
+# SYNTHETIC DEMO TENDER -- NOT AN OFFICIAL GOVERNMENT RECORD
+# Simulated tender notice generated for ARGUS platform demonstration and testing.
+# ==============================================================================
+GOVERNMENT e-MARKETPLACE (GeM)
+TENDER DOCUMENT
+TENDER NO: GEM/2026/B/4521089
+DATE OF PUBLICATION: 01-08-2026
+TITLE: Supply of IT Infrastructure Equipment -- Server Racks, UPS Systems, and Networking Hardware
+PROCURING AUTHORITY: National Informatics Centre (NIC), Ministry of Electronics and Information Technology
+CATEGORY: IT Hardware / Data Centre Infrastructure
+ESTIMATED VALUE: INR 5,00,00,000 (Five Crore Rupees Only)
+EARNEST MONEY DEPOSIT (EMD): INR 10,00,000
+BID SUBMISSION DEADLINE: 30-09-2026, 17:00 IST
+================================================================================
+SECTION 1: SCOPE OF WORK""",
+        page_number=1,
+        location_metadata={"relevance_score": 0.89, "tender_id": "T-100", "title": "Tender Notice"},
+    )
+
+    mock_res = RAGQueryResponse(
+        query="What is the EMD amount?",
+        results=[chunk_banner_and_emd],
+        retrieved_at=datetime.now(timezone.utc),
+    )
+
+    with patch("app.api.v1.rag.rag_adapter.retrieve", new_callable=AsyncMock) as mock_retrieve:
+        mock_retrieve.return_value = mock_res
+        resp = client.post(
+            "/api/v1/rag/explain",
+            headers=headers,
+            json={
+                "query": "What is the EMD amount?",
+                "tender_id": "T-100",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["result_class"] == "DIRECT_EVIDENCE"
+        assert len(data["citations"]) == 1
+
+        direct_ans = data["direct_answer"]
+        # Must contain EMD and the actual value
+        assert "EMD" in direct_ans
+        assert "10,00,000" in direct_ans
+        # Must NOT contain banner separators or header comments
+        assert "====" not in direct_ans
+        assert "----" not in direct_ans
+        assert "#####" not in direct_ans
+        assert "SYNTHETIC DEMO" not in direct_ans
+        assert "ESTIMATED VALUE" not in direct_ans
+
+

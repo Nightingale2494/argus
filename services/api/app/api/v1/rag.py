@@ -236,6 +236,141 @@ def evaluate_evidence_sufficiency(
     return False, False, "Low relevance"
 
 
+# ---------------------------------------------------------------------------
+# Intent-Aware Answer & Context Extraction
+# ---------------------------------------------------------------------------
+
+def clean_formatting_artifacts(text: str) -> str:
+    """Strips leading/trailing markdown, divider lines, and repetitive symbols."""
+    cleaned = re.sub(r"^[#=\-_*~/\s:]+", "", text).strip()
+    cleaned = re.sub(r"[#=\-_*~/\s:]+$", "", cleaned).strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned
+
+
+def is_formatting_or_banner(line: str) -> bool:
+    """Detects whether a line is purely a formatting divider, comment banner, or section header."""
+    s = line.strip()
+    if not s:
+        return True
+    if re.match(r"^[\s#=\-_*~/|:;.]+$", s):
+        return True
+    if s.startswith("#") and any(w in s.lower() for w in ["synthetic", "demo", "record", "tender document", "simulated"]):
+        return True
+    if re.match(r"^section\s+\d+[:\s]", s, re.IGNORECASE):
+        return True
+    if len(re.findall(r"[a-zA-Z]", s)) < 3:
+        return True
+    return False
+
+
+def extract_candidate_segments(snippet: str) -> list[str]:
+    """Extracts non-formatting lines and constituent sentences from a snippet."""
+    raw_lines = [l.strip() for l in snippet.splitlines() if l.strip()]
+    candidates: list[str] = []
+    for l in raw_lines:
+        if is_formatting_or_banner(l):
+            continue
+        cleaned = clean_formatting_artifacts(l)
+        if len(cleaned) >= 5:
+            candidates.append(cleaned)
+            sentences = [s.strip() for s in re.split(r"(?<=[.?!])\s+", cleaned) if len(s.strip()) >= 5]
+            if len(sentences) > 1:
+                for sent in sentences:
+                    if sent not in candidates:
+                        candidates.append(sent)
+    return candidates
+
+
+def extract_direct_answer(snippet: str, intent: str) -> str:
+    """Extracts the intent-aware, answer-bearing sentence or clause from direct evidence,
+    stripping all document formatting artifacts and separators.
+    """
+    monetary_pattern = re.compile(
+        r"(inr|rs\.?|₹)\s*[\d,]+(\.\d+)?|\b\d+([,.]\d+)?\s*(lakh|crore|thousand|percent|%)\b|\b\d{4,}\b",
+        re.IGNORECASE,
+    )
+    threshold_pattern = re.compile(
+        r"\b\d+\s*(years?|yrs?|months?|days?|projects?|works?|contracts?|orders?|crore|lakh|%)\b|(inr|rs\.?|₹)\s*[\d,]+",
+        re.IGNORECASE,
+    )
+    exemption_pattern = re.compile(
+        r"\b(exempt|exemption|relax|relaxation|waiv|waiver|not applicable|exempted|relaxed)\b",
+        re.IGNORECASE,
+    )
+
+    candidates = extract_candidate_segments(snippet)
+    if not candidates:
+        fallback = clean_formatting_artifacts(snippet)
+        if fallback:
+            return f"Retrieved evidence states: {fallback[:200]}"
+        return "ARGUS could not find an indexed clause that directly answers this question."
+
+    # 1. Intent-Aware Extraction
+    if intent == "EMD_AMOUNT":
+        for c in candidates:
+            cl = c.lower()
+            if any(w in cl for w in ["emd", "earnest money", "bid security"]) and monetary_pattern.search(cl):
+                return c
+
+    elif intent == "EMD_EXEMPTION":
+        for c in candidates:
+            cl = c.lower()
+            if any(w in cl for w in ["emd", "earnest money", "bid security"]) and (
+                exemption_pattern.search(cl) or "bid securing declaration" in cl
+            ):
+                return c
+
+    elif intent == "MSME_EXEMPTION":
+        for c in candidates:
+            cl = c.lower()
+            if any(w in cl for w in ["msme", "mse", "udyam", "micro and small", "small enterprise"]) and exemption_pattern.search(cl):
+                return c
+
+    elif intent == "PAST_EXPERIENCE_THRESHOLD":
+        for c in candidates:
+            cl = c.lower()
+            if any(w in cl for w in ["experience", "similar work", "past performance", "similar project", "executed"]) and threshold_pattern.search(cl):
+                return c
+
+    elif intent == "WARRANTY":
+        for c in candidates:
+            cl = c.lower()
+            if any(w in cl for w in ["warranty", "guarantee", "defect liability"]):
+                return c
+
+    elif intent == "JV_CONSORTIUM":
+        for c in candidates:
+            cl = c.lower()
+            if any(w in cl for w in ["joint venture", "consortium", "jv", "consortia"]):
+                return c
+
+    elif intent == "GENERAL_NUMERIC":
+        for c in candidates:
+            cl = c.lower()
+            if threshold_pattern.search(cl) or monetary_pattern.search(cl):
+                return c
+
+    # 2. Substantive Fallback: Return first non-title, non-uppercase candidate of substantial length
+    for c in candidates:
+        if len(c) >= 20 and not c.endswith(":") and not c.isupper():
+            return c
+
+    return f"Retrieved evidence states: {candidates[0]}"
+
+
+def extract_related_context(snippet: str) -> str:
+    """Extracts clean related context sentence or clause, stripping formatting artifacts."""
+    candidates = extract_candidate_segments(snippet)
+    if not candidates:
+        fallback = clean_formatting_artifacts(snippet)
+        return fallback[:200] if fallback else ""
+    for c in candidates:
+        if len(c) >= 20 and not c.endswith(":") and not c.isupper():
+            return c
+    return candidates[0]
+
+
 @router.post("/explain", response_model=RAGExplainResponse)
 async def explain_policy_or_clause(
     payload: RAGExplainRequest,
@@ -292,13 +427,13 @@ async def explain_policy_or_clause(
     if direct_citations:
         result_class = "DIRECT_EVIDENCE"
         top_direct = direct_citations[0]
-        direct_answer = top_direct.snippet.split("\n")[0].strip()
+        direct_answer = extract_direct_answer(top_direct.snippet, intent_info["intent"])
         if len(direct_answer) > 300:
             direct_answer = direct_answer[:297] + "..."
 
         if related_citations:
             top_rel = related_citations[0]
-            related_context = top_rel.snippet.split("\n")[0].strip()
+            related_context = extract_related_context(top_rel.snippet)
             if len(related_context) > 200:
                 related_context = related_context[:197] + "..."
             explanation = f"{direct_answer} Related context: {related_context}"
@@ -315,7 +450,7 @@ async def explain_policy_or_clause(
             direct_answer = "ARGUS could not find an indexed clause that directly answers this question."
 
         top_rel = related_citations[0]
-        related_context = top_rel.snippet.split("\n")[0].strip()
+        related_context = extract_related_context(top_rel.snippet)
         if len(related_context) > 200:
             related_context = related_context[:197] + "..."
         explanation = f"{direct_answer} Related context: {related_context}"
