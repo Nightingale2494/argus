@@ -82,6 +82,7 @@ jobs:
       - name: Verify Environment Diagnostic
         env:
           ARGUS_JWT_SECRET: "12345678901234567890123456789012"
+          DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/argus_test"
         run: python "../../scripts/verify_environment.py"
 
   intelligence:
