@@ -22,6 +22,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.audit.logger import AuditLogger
+from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.domain import (
     Bidder,
