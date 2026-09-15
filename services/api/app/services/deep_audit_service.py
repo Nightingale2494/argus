@@ -16,6 +16,7 @@ STRICT INVARIANT:
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -48,6 +49,50 @@ from app.services.rag_adapter import RAGServiceAdapter
 from app.compliance.canonical_fields import resolve_canonical_field
 
 logger = logging.getLogger("argus.deep_audit")
+
+# ---------------------------------------------------------------------------
+# FINANCIAL VALUE NORMALIZATION
+# ---------------------------------------------------------------------------
+# Canonical financial normalization: strip currency prefix, remove comma
+# separators (both Western and Indian grouping), normalize .0/.00 decimals
+# to integer, and lowercase.  If the result is a pure integer string it is
+# returned as such; otherwise the stripped lowercase form is returned.
+#
+# Examples of values that must compare EQUAL after normalization:
+#   "inr 5,12,33,333"  ==  "51233333"
+#   "INR 1,00,000"     ==  "100000"
+#   "51233333.00"      ==  "51233333"
+#
+# Genuine mismatches (different numbers) must still survive:
+#   "51233333"  !=  "78000000"
+
+_CURRENCY_PREFIX_RE = re.compile(
+    r"^\s*(inr|usd|eur|gbp|₹|\$|€|£)\s*", re.IGNORECASE
+)
+
+
+def _normalize_financial_value(raw: str) -> str:
+    """Return a canonical string for a financial fact value.
+
+    Two values that represent the same monetary amount will return identical
+    strings; values that represent different amounts will remain distinct.
+    Non-financial strings (e.g. boolean flags, free text) are returned in
+    stripped-lowercase form so they still participate correctly in set
+    cardinality checks.
+    """
+    stripped = raw.strip().lower()
+    # Remove currency prefix
+    no_prefix = _CURRENCY_PREFIX_RE.sub("", stripped).strip()
+    # Remove all comma separators (handles both 1,00,000 and 1,000,000)
+    no_commas = no_prefix.replace(",", "")
+    # Normalize trailing zeros: "51233333.00" -> "51233333"
+    try:
+        float_val = float(no_commas)
+        if float_val == int(float_val):
+            return str(int(float_val))
+        return str(float_val)
+    except ValueError:
+        return no_commas
 
 
 class DeepAuditService:
@@ -222,7 +267,11 @@ class DeepAuditService:
 
             for field_k, f_list in facts_by_field.items():
                 if len(f_list) > 1:
-                    vals = {str(f.value).strip().lower() for f in f_list if f.value is not None}
+                    vals = {
+                        _normalize_financial_value(str(f.value))
+                        for f in f_list
+                        if f.value is not None
+                    }
                     if len(vals) > 1:
                         # Find matching tender requirement
                         matching_req = next(

@@ -510,3 +510,79 @@ async def test_deep_audit_real_langgraph_execution_and_monkeypatch_verification(
     assert res_interrupted["synthesis"]["langgraph_interrupted"] is True
     assert "Discrepancy in financial records." in res_interrupted["synthesis"]["langgraph_reasons"]
 
+
+# ---------------------------------------------------------------------------
+# Financial Normalization Unit Tests
+# ---------------------------------------------------------------------------
+
+def test_financial_normalization_equivalent_representations():
+    """Prove that equivalent financial representations normalize to identical values."""
+    from app.services.deep_audit_service import _normalize_financial_value
+
+    # Indian comma grouping vs plain integer — must be EQUAL
+    assert _normalize_financial_value("inr 5,12,33,333") == _normalize_financial_value("51233333"), \
+        "Indian rupee prefix with commas must equal plain integer"
+
+    # 1 Lakh — different comma grouping styles
+    assert _normalize_financial_value("INR 1,00,000") == _normalize_financial_value("100000"), \
+        "INR 1,00,000 must equal 100000"
+
+    # Trailing zeros normalization
+    assert _normalize_financial_value("51233333.00") == _normalize_financial_value("51233333"), \
+        "51233333.00 must equal 51233333"
+
+    # Lower-case boolean strings
+    assert _normalize_financial_value("True") == _normalize_financial_value("true"), \
+        "Case-insensitive boolean normalization"
+
+    # Currency symbol variant
+    assert _normalize_financial_value("₹ 10,00,000") == _normalize_financial_value("1000000"), \
+        "Rupee symbol prefix must be stripped correctly"
+
+
+def test_financial_normalization_genuine_conflicts_survive():
+    """Genuine numerical mismatches must NOT normalize to the same value."""
+    from app.services.deep_audit_service import _normalize_financial_value
+
+    # Different integers — must remain DISTINCT
+    assert _normalize_financial_value("51233333") != _normalize_financial_value("78000000"), \
+        "Different amounts must remain distinct after normalization"
+
+    # Off-by-one
+    assert _normalize_financial_value("inr 5,12,33,333") != _normalize_financial_value("51233334"), \
+        "Off-by-one amounts must remain distinct"
+
+    # Different orders of magnitude
+    assert _normalize_financial_value("100000") != _normalize_financial_value("1000000"), \
+        "1 Lakh vs 10 Lakh must remain distinct"
+
+
+@pytest.mark.asyncio
+async def test_deep_audit_no_false_financial_conflict():
+    """Deep Audit cross-document conflict detection must NOT flag numerically equal
+    financial values that differ only in formatting (Indian comma grouping, currency prefix)."""
+    from app.services.deep_audit_service import _normalize_financial_value
+    from app.compliance.canonical_fields import resolve_canonical_field
+
+    # Simulate two facts for the same canonical field from different documents
+    field = "financial.average_annual_turnover"
+    val_a = "inr 5,12,33,333"   # Indian comma grouping with INR prefix
+    val_b = "51233333"           # Plain integer (same amount)
+
+    # This is exactly the set comprehension used in deep_audit_service.py
+    canon_k = resolve_canonical_field(field)
+    vals = {_normalize_financial_value(v) for v in (val_a, val_b)}
+
+    assert len(vals) == 1, (
+        f"After normalization, 'inr 5,12,33,333' and '51233333' must be treated as equal values. "
+        f"Got distinct normalized set: {vals}. This would produce a false financial conflict."
+    )
+
+    # Also verify a genuine mismatch STILL produces two distinct values
+    val_c = "78000000"  # Different amount
+    vals_genuine = {_normalize_financial_value(v) for v in (val_a, val_c)}
+    assert len(vals_genuine) == 2, (
+        f"Genuine financial mismatch between {val_a!r} and {val_c!r} must survive normalization. "
+        f"Got merged set: {vals_genuine}."
+    )
+

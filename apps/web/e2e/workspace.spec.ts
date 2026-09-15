@@ -50,7 +50,9 @@ test.describe('ARGUS End-to-End Procurement Compliance Workflow', () => {
 
   test('3. Bidder detail & Mismatch explainability modal acceptance test', async ({ page }) => {
     await page.goto('/workspace/bidders/bidder_alpha_01?mode=demo');
-    await expect(page.getByText(/ALPHA TECHNOLOGIES|Alpha Infotech/i).first()).toBeVisible();
+    // Wait for backend API data to load before asserting bidder name
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText(/ALPHA TECHNOLOGIES|Alpha Infotech/i).first()).toBeVisible({ timeout: 15000 });
 
     // Verify statutory identifier registry card
     await expect(page.getByText('Statutory Identifier Registry')).toBeVisible();

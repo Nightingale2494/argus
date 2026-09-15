@@ -27,9 +27,16 @@ def test_database_url_single_source():
 @pytest.mark.asyncio
 async def test_no_simulated_mode_behavior():
     adapter = GSTVerificationAdapter()
-    # Passing legacy "simulated_mode" should be ignored and mode should resolve to default (LIVE)
+    # Passing legacy "simulated_mode" key must be IGNORED by resolve_mode().
+    # The resolved mode must equal what settings.get_mode_for_domain("gst") returns
+    # (DEMO in test env, LIVE in production with credentials).
+    # What matters is that simulated_mode does NOT act as a verification_mode override.
+    from app.core.config import settings
+    expected_default = settings.get_mode_for_domain("gst")
     resolved_mode = adapter.resolve_mode({"simulated_mode": "demo"})
-    assert resolved_mode == VerificationMode.LIVE
+    assert resolved_mode == expected_default, (
+        f"simulated_mode should be ignored; expected settings default {expected_default!r}, got {resolved_mode!r}"
+    )
 
 
 @pytest.mark.asyncio

@@ -593,6 +593,53 @@ async def _execute_demo_seed(
             # Log error but continue so partial failures do not halt overall scenario seed
             print(f"Warning: Demo verification workflow for bidder {actual_id} emitted error: {err}")
 
+    # Stage 4.5: RAG Ingest — index flagship tender into pgvector for authentic retrieval
+    # This is a BLOCKING call within the seed so that the demo is RAG-ready when seed returns.
+    job.progress = 80
+    db.commit()
+
+    flagship_tender_id = tender_id_map.get("tender_gem_2026_01", "tender_gem_2026_01")
+    tender_doc_storage_key = f"tenders/{flagship_tender_id}/tender_gem_2026_B_4521089.pdf"
+
+    rag_chunks_indexed = 0
+    rag_ingest_status = "NOT_ATTEMPTED"
+    try:
+        from app.services.rag_adapter import RAGServiceAdapter
+        rag = RAGServiceAdapter()
+        ingest_result = await rag.ingest_document(
+            document_id="doc_tender_gem_2026_01",
+            title="GEM/2026/B/4521089 — IT Infrastructure Tender",
+            document_uri=tender_doc_storage_key,
+            document_type="TENDER",
+            tender_id=flagship_tender_id,
+            clause=None,
+            security_level="INTERNAL",
+        )
+        rag_chunks_indexed = ingest_result.get("chunks_indexed", 0)
+        rag_ingest_status = "COMPLETED" if ingest_result.get("success") else f"FAILED:{ingest_result.get('error_code', 'UNKNOWN')}"
+        logger.info(
+            f"Demo RAG ingest: status={rag_ingest_status} chunks={rag_chunks_indexed} doc=doc_tender_gem_2026_01"
+        )
+    except Exception as rag_exc:
+        rag_ingest_status = f"ERROR:{rag_exc}"
+        logger.warning(f"Demo RAG ingest failed (non-fatal): {rag_exc}")
+
+    AuditLogger.log(
+        db,
+        action="RAG_INGEST",
+        entity_type="DOCUMENT",
+        entity_id="doc_tender_gem_2026_01",
+        actor_id=actor_id,
+        actor_role=actor_role,
+        payload={
+            "tender_id": flagship_tender_id,
+            "storage_key": tender_doc_storage_key,
+            "chunks_indexed": rag_chunks_indexed,
+            "status": rag_ingest_status,
+        },
+    )
+    db.commit()
+
     # Stage 5: Finalization & Audit
     job.current_stage = JobStage.REPORTING
     job.progress = 100
@@ -611,6 +658,8 @@ async def _execute_demo_seed(
             "fixture_version": DEMO_FIXTURE_VERSION,
             "tenders_count": len(DEMO_TENDERS),
             "bidders_count": len(flagship_bidders),
+            "rag_ingest_status": rag_ingest_status,
+            "rag_chunks_indexed": rag_chunks_indexed,
             "timestamp": now.isoformat(),
         },
     )
