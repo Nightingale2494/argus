@@ -747,6 +747,27 @@ async def reset_demo(
             db.query(Document).filter(Document.bidder_id.in_(b_ids)).delete(synchronize_session=False)
             db.query(Bidder).filter(Bidder.id.in_(b_ids)).delete(synchronize_session=False)
 
+        # Delete tender-level documents (bidder_id=None, tender_id in demo set)
+        # These MUST be deleted before TenderRequirement and Tender to avoid FK violations
+        tender_doc_ids = [
+            row.id for row in
+            db.query(Document.id).filter(Document.tender_id.in_(t_ids_to_clean)).all()
+        ]
+        if tender_doc_ids:
+            db.query(ExtractedFact).filter(ExtractedFact.document_id.in_(tender_doc_ids)).delete(synchronize_session=False)
+            db.query(Evidence).filter(Evidence.document_id.in_(tender_doc_ids)).delete(synchronize_session=False)
+            db.query(Document).filter(Document.id.in_(tender_doc_ids)).delete(synchronize_session=False)
+
+        # Also delete any Evidence rows directly referencing the tender (tender_id FK)
+        db.query(Evidence).filter(Evidence.tender_id.in_(t_ids_to_clean)).delete(synchronize_session=False)
+
+        # Delete processing jobs associated with demo targets
+        db.query(ProcessingJob).filter(
+            (ProcessingJob.target_id.in_(t_ids_to_clean)) |
+            (ProcessingJob.target_id.in_(b_ids) if b_ids else ProcessingJob.target_id.is_(None)) |
+            (ProcessingJob.target_type == "DEMO")
+        ).delete(synchronize_session=False)
+
         db.query(TenderRequirement).filter(TenderRequirement.tender_id.in_(t_ids_to_clean)).delete(synchronize_session=False)
         db.query(Tender).filter(Tender.id.in_(t_ids_to_clean)).delete(synchronize_session=False)
         db.commit()
