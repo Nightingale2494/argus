@@ -732,23 +732,42 @@ async def reset_demo(
     t_ids_to_clean = [t.id for t in demo_tenders]
 
     if t_ids_to_clean:
-        # Cascade-delete related demo entities
+        # Cascade-delete related demo entities in strict FK leaf-to-root order.
+        # bulk .delete(synchronize_session=False) bypasses ORM cascade, so each
+        # child table must be handled explicitly before its parent.
+
         demo_bidders = db.query(Bidder).filter(Bidder.tender_id.in_(t_ids_to_clean)).all()
         b_ids = [b.id for b in demo_bidders]
 
+        # --- Collect all demo ProcessingJob IDs (bidder + tender + DEMO target_type) ---
+        demo_job_ids = [
+            row.id for row in db.query(ProcessingJob.id).filter(
+                (ProcessingJob.target_id.in_(t_ids_to_clean)) |
+                (ProcessingJob.target_id.in_(b_ids) if b_ids else False) |
+                (ProcessingJob.target_type == "DEMO")
+            ).all()
+        ]
+
+        # --- Leaf tables (no children) ---
         if b_ids:
             db.query(RuleEvaluation).filter(RuleEvaluation.bidder_id.in_(b_ids)).delete(synchronize_session=False)
             db.query(VerificationResult).filter(VerificationResult.bidder_id.in_(b_ids)).delete(synchronize_session=False)
             db.query(RiskSignal).filter(RiskSignal.bidder_id.in_(b_ids)).delete(synchronize_session=False)
             db.query(Evidence).filter(Evidence.bidder_id.in_(b_ids)).delete(synchronize_session=False)
-            db.query(ComplianceRun).filter(ComplianceRun.bidder_id.in_(b_ids)).delete(synchronize_session=False)
             db.query(HumanDecision).filter(HumanDecision.bidder_id.in_(b_ids)).delete(synchronize_session=False)
             db.query(ExtractedFact).filter(ExtractedFact.bidder_id.in_(b_ids)).delete(synchronize_session=False)
+
+        # JobEvent.job_id FK -> processing_jobs.id — must delete before ProcessingJob
+        if demo_job_ids:
+            db.query(JobEvent).filter(JobEvent.job_id.in_(demo_job_ids)).delete(synchronize_session=False)
+
+        if b_ids:
+            # ComplianceRun.job_id FK -> processing_jobs.id — delete after JobEvent, before ProcessingJob
+            db.query(ComplianceRun).filter(ComplianceRun.bidder_id.in_(b_ids)).delete(synchronize_session=False)
             db.query(Document).filter(Document.bidder_id.in_(b_ids)).delete(synchronize_session=False)
             db.query(Bidder).filter(Bidder.id.in_(b_ids)).delete(synchronize_session=False)
 
-        # Delete tender-level documents (bidder_id=None, tender_id in demo set)
-        # These MUST be deleted before TenderRequirement and Tender to avoid FK violations
+        # Tender-level Documents (bidder_id=None, tender_id in demo set)
         tender_doc_ids = [
             row.id for row in
             db.query(Document.id).filter(Document.tender_id.in_(t_ids_to_clean)).all()
@@ -758,15 +777,12 @@ async def reset_demo(
             db.query(Evidence).filter(Evidence.document_id.in_(tender_doc_ids)).delete(synchronize_session=False)
             db.query(Document).filter(Document.id.in_(tender_doc_ids)).delete(synchronize_session=False)
 
-        # Also delete any Evidence rows directly referencing the tender (tender_id FK)
+        # Evidence rows with direct tender_id FK
         db.query(Evidence).filter(Evidence.tender_id.in_(t_ids_to_clean)).delete(synchronize_session=False)
 
-        # Delete processing jobs associated with demo targets
-        db.query(ProcessingJob).filter(
-            (ProcessingJob.target_id.in_(t_ids_to_clean)) |
-            (ProcessingJob.target_id.in_(b_ids) if b_ids else ProcessingJob.target_id.is_(None)) |
-            (ProcessingJob.target_type == "DEMO")
-        ).delete(synchronize_session=False)
+        # ProcessingJob — now safe to delete (ComplianceRun and JobEvent children gone)
+        if demo_job_ids:
+            db.query(ProcessingJob).filter(ProcessingJob.id.in_(demo_job_ids)).delete(synchronize_session=False)
 
         db.query(TenderRequirement).filter(TenderRequirement.tender_id.in_(t_ids_to_clean)).delete(synchronize_session=False)
         db.query(Tender).filter(Tender.id.in_(t_ids_to_clean)).delete(synchronize_session=False)
