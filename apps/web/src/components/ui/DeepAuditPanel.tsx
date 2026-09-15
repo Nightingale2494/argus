@@ -6,7 +6,6 @@ import {
   HelpCircle, ArrowRight, ShieldAlert, Sparkles, RefreshCw
 } from "lucide-react";
 import { api } from "@/services/api";
-import { demoStore } from "@/services/demo-store";
 import type { DeepAuditSynthesis, DeepAuditStatusResponse } from "@/services/types";
 
 interface DeepAuditPanelProps {
@@ -27,8 +26,8 @@ const STAGES = [
 
 export function DeepAuditPanel({
   bidderId,
-  bidderName,
-  isDemo = false,
+  bidderName: _bidderName,
+  isDemo: _isDemo = false,
   onCompleted,
 }: DeepAuditPanelProps) {
   const [loading, setLoading] = useState(false);
@@ -42,17 +41,6 @@ export function DeepAuditPanel({
   const fetchStatus = useCallback(async () => {
     if (!bidderId) return;
     try {
-      if (isDemo) {
-        const saved = demoStore.getDemoState().deepAuditSyntheses?.[bidderId];
-        if (saved) {
-          setStatus("COMPLETED");
-          setSynthesis(saved);
-        } else {
-          setStatus("NOT_STARTED");
-        }
-        return;
-      }
-
       const res: DeepAuditStatusResponse = await api.getLatestDeepAudit(bidderId);
       setStatus(res.status);
       if (res.stage) setCurrentStage(res.stage);
@@ -67,15 +55,15 @@ export function DeepAuditPanel({
     } catch {
       // Ignore initial load error if no audit yet
     }
-  }, [bidderId, isDemo]);
+  }, [bidderId]);
 
   useEffect(() => {
     fetchStatus();
   }, [fetchStatus]);
 
-  // Polling for live authentic jobs
+  // Polling for live jobs
   useEffect(() => {
-    if (!running || isDemo) return;
+    if (!running) return;
 
     const interval = setInterval(async () => {
       try {
@@ -102,67 +90,11 @@ export function DeepAuditPanel({
     }, 1500);
 
     return () => clearInterval(interval);
-  }, [running, bidderId, isDemo, onCompleted]);
+  }, [running, bidderId, onCompleted]);
 
   const handleStartDeepAudit = async () => {
     setError(null);
     setLoading(true);
-
-    if (isDemo) {
-      setRunning(true);
-      setStatus("RUNNING");
-      setLoading(false);
-
-      // Simulate multi-stage advisory workflow in client-side state
-      for (let i = 0; i < STAGES.length; i++) {
-        setCurrentStage(STAGES[i].key);
-        setProgress(Math.round(((i + 1) / STAGES.length) * 100));
-        await new Promise((r) => setTimeout(r, 450));
-      }
-
-      const syntheticSynthesis: DeepAuditSynthesis = {
-        summary: `Autonomous advisory audit completed for bidder ${bidderName || bidderId}. Identified 1 high-priority conflict regarding turnover reconciliation and 1 valid statutory exemption applicable under Demo Policy Fixture P-153 (Synthetic Procurement Policy — MSME Exemption).`,
-        conflicts_detected: [
-          {
-            clause_reference: "Clause 3.1 vs Clause 4.2",
-            conflict_type: "TURNOVER_THRESHOLD_AMBIGUITY",
-            description: "General tender financial requirement mandates ₹5.0 Cr turnover, but Clause 4.2 grants MSE exemption for Udyam-registered micro-enterprises.",
-            severity: "WARNING",
-          },
-        ],
-        policy_precedents: [
-          {
-            clause_reference: "Demo Policy Fixture P-153 (Synthetic Procurement Policy — MSME Exemption)",
-            precedent_id: "SYN-FIXTURE-P153",
-            source: "Synthetic Procurement Policy Context • Demo Only",
-            similarity_score: 0.94,
-            ruling_summary: "Procuring entities may not reject MSE bidders meeting technical parameters solely on failure of minimum turnover thresholds.",
-          },
-          {
-            clause_reference: "Demo Policy Fixture P-2014 (Synthetic Startup & MSE Experience Relaxation)",
-            precedent_id: "SYN-FIXTURE-P2014",
-            source: "Synthetic Procurement Policy Context • Demo Only",
-            similarity_score: 0.88,
-            ruling_summary: "Prior experience criteria relaxation is applicable to registered startups and MSEs in all public goods/service tenders.",
-          },
-        ],
-        evidence_synthesis: "Bidder submitted valid Udyam Registration (UDYAM-MH-02-0049281) and CA turnover certificate. Deterministic statutory verification confirmed active GSTIN status. Exemption is verified and eligible for officer sign-off.",
-        recommended_human_inquiries: [
-          "Confirm whether bidder qualifies under Micro or Small category on the National Udyam Portal.",
-          "Verify that manufacturing/service provision domain matches Tender Item Classification Schedule.",
-          "Record formal officer discretion in compliance determination memo.",
-        ],
-        disclaimer: "Advisory Analysis: Deep Audit provides investigation assistance. Final qualification decisions remain solely with the human procurement officer.",
-        is_advisory: true,
-      };
-
-      demoStore.recordDeepAuditSynthesis(bidderId, syntheticSynthesis);
-      setSynthesis(syntheticSynthesis);
-      setStatus("COMPLETED");
-      setRunning(false);
-      onCompleted?.();
-      return;
-    }
 
     try {
       await api.triggerDeepAudit(bidderId);

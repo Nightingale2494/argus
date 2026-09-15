@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import { Search, Sparkles, BookOpen, AlertCircle, FileText, Info } from "lucide-react";
 import { api } from "@/services/api";
-import { demoStore } from "@/services/demo-store";
 import type { RAGExplainResponse } from "@/services/types";
 
 interface ClauseIntelligencePanelProps {
@@ -31,19 +30,12 @@ export function ClauseIntelligencePanel({ tenderId, isDemo = false }: ClauseInte
     setError(null);
 
     try {
-      if (isDemo) {
-        // Pure synthetic client-side response — zero backend network calls
-        await new Promise((r) => setTimeout(r, 250));
-        const syntheticRes = await demoStore.queryRAG(tenderId, q);
-        setResult(syntheticRes);
-      } else {
-        const resp = await api.explainRAG({
-          query: q,
-          tender_id: tenderId,
-          top_k: 5,
-        });
-        setResult(resp);
-      }
+      const resp = await api.explainRAG({
+        query: q,
+        tender_id: tenderId,
+        top_k: 5,
+      });
+      setResult(resp);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to query policy intelligence";
       setError(msg);

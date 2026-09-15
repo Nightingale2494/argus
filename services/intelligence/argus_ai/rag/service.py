@@ -30,8 +30,15 @@ def _terms(text: str) -> Counter[str]:
     return Counter(_stem(w) for w in words if w not in STOP_WORDS)
 
 def _score(a: Counter[str], b: Counter[str]) -> float:
-    dot = sum(a[x] * b[x] for x in a.keys() & b.keys())
-    return dot / math.sqrt(sum(x*x for x in a.values()) * sum(x*x for x in b.values())) if a and b else 0.0
+    if not a or not b:
+        return 0.0
+    common = a.keys() & b.keys()
+    if not common:
+        return 0.0
+    dot = sum(a[x] * b[x] for x in common)
+    cosine = dot / math.sqrt(sum(x*x for x in a.values()) * sum(x*x for x in b.values()))
+    coverage = len(common) / len(a)
+    return max(cosine, coverage * 0.5)
 
 MIN_RELEVANCE_THRESHOLD = 0.20
 

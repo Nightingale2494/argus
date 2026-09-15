@@ -81,7 +81,8 @@ def resolved_document(uri: Union[str, Path]) -> Iterator[Path]:
                     "local document resolution requires ARGUS_ALLOWED_STORAGE_ROOTS to be configured"
                 )
         else:
-            allowed_roots = [Path(r.strip()).resolve() for r in allowed_roots_str.split(",") if r.strip()]
+            import re
+            allowed_roots = [Path(r.strip()).resolve() for r in re.split(r"[,;]", allowed_roots_str) if r.strip()]
             if not allowed_roots:
                 raise DocumentResolutionError(
                     "ARGUS_ALLOWED_STORAGE_ROOTS is set but contains no usable path"

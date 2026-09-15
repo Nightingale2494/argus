@@ -604,20 +604,41 @@ class DeepAuditService:
                 },
             }
 
+            import os
             import sys
             import time
             from pathlib import Path
-            intel_path = str(Path(__file__).resolve().parents[3] / "intelligence")
+            repo_root = Path(__file__).resolve().parents[3]
+            intel_path = str(repo_root / "intelligence")
             if intel_path not in sys.path:
                 sys.path.insert(0, intel_path)
+
+            if not os.environ.get("ARGUS_ALLOWED_STORAGE_ROOTS") and settings.APP_ENV.lower() != "production":
+                data_roots = [
+                    str((repo_root / "data").resolve()),
+                    str(Path(settings.ARGUS_STORAGE_LOCAL_PATH).resolve()),
+                ]
+                os.environ["ARGUS_ALLOWED_STORAGE_ROOTS"] = ";".join(data_roots)
 
             from argus_ai.agents.workflow import build_argus_workflow, memory_checkpointer
 
             checkpointer = memory_checkpointer()
             workflow = build_argus_workflow(checkpointer=checkpointer)
 
+            tender_doc_uri = None
+            if tender and tender.raw_document_uri:
+                raw_path = Path(tender.raw_document_uri)
+                if raw_path.is_absolute() and raw_path.exists():
+                    tender_doc_uri = str(raw_path)
+                else:
+                    cand = repo_root / tender.raw_document_uri
+                    if cand.exists():
+                        tender_doc_uri = str(cand.resolve())
+                    elif raw_path.exists():
+                        tender_doc_uri = str(raw_path.resolve())
+
             initial_state = {
-                "tender": {"document_uri": tender.raw_document_uri if tender else None},
+                "tender": {"document_uri": tender_doc_uri},
                 "document": {
                     "bidder_id": bidder_id,
                     "document_id": facts[0].document_id if facts else "unknown",

@@ -8,13 +8,21 @@ import {
   ArrowLeft, RefreshCw, Users, AlertCircle, XCircle
 } from "lucide-react";
 import { api } from "@/services/api";
-import { demoStore, DemoTender } from "@/services/demo-store";
 import { TenderRead, BidderRead, TenderRequirementRead } from "@/services/types";
 import { RequirementAddModal } from "@/components/ui/RequirementAddModal";
 import { JobProgressDrawer } from "@/components/ui/JobProgressDrawer";
 import { SessionRequired } from "@/components/ui/SessionRequired";
 import { ClauseIntelligencePanel } from "@/components/ui/ClauseIntelligencePanel";
 import { useAuth } from "@/hooks/useAuth";
+
+interface TenderWithFile extends TenderRead {
+  attached_file?: {
+    filename?: string;
+    size_bytes?: number;
+    content_type?: string;
+    uploaded_at?: number | string;
+  };
+}
 
 function deduplicateRequirements(reqs: TenderRequirementRead[]): TenderRequirementRead[] {
   const sorted = [...reqs].sort((a, b) => (b.is_approved ? 1 : 0) - (a.is_approved ? 1 : 0));
@@ -51,7 +59,7 @@ export default function TenderDetailPage() {
   const id = params?.id as string;
   const { isAuthenticated, isDemoPreview } = useAuth();
 
-  const [tender, setTender] = useState<TenderRead | null>(null);
+  const [tender, setTender] = useState<TenderWithFile | null>(null);
   const [bidders, setBidders] = useState<BidderRead[]>([]);
   const [requirements, setRequirements] = useState<TenderRequirementRead[]>([]);
   const [activeTab, setActiveTab] = useState<"bidders" | "requirements" | "intelligence">("bidders");
@@ -73,35 +81,28 @@ export default function TenderDetailPage() {
   const [bidderSubmitting, setBidderSubmitting] = useState(false);
   const [bidderError, setBidderError] = useState<string | null>(null);
 
-  const storedDemoTender = id ? demoStore.getTender(id) : null;
-  const isDemo = isDemoPreview || Boolean(storedDemoTender);
-
   const loadTenderData = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError(null);
 
-    if (isDemo) {
-      const match = demoStore.getTender(id);
-      if (!match) {
-        setTender(null);
-        setError("Tender Not Found");
-        setLoading(false);
-        return;
-      }
-      setTender(match);
-      setBidders(demoStore.getBidders(id));
-      setRequirements(demoStore.getRequirements(id));
-      setLoading(false);
-      return;
-    }
-
-    if (!isAuthenticated) {
+    if (!isAuthenticated && !isDemoPreview) {
       setLoading(false);
       return;
     }
 
     try {
+      if (isDemoPreview) {
+        try {
+          const demoStatus = await api.getDemoStatus();
+          if (!demoStatus.seeded) {
+            await api.seedDemo();
+          }
+        } catch (seedErr) {
+          console.warn('Demo status/seed check error:', seedErr);
+        }
+      }
+
       const [tData, bData, rData] = await Promise.all([
         api.getTender(id),
         api.getBidders(id),
@@ -109,14 +110,14 @@ export default function TenderDetailPage() {
       ]);
       setTender(tData);
       setBidders(bData);
-      setRequirements(isDemo ? rData : deduplicateRequirements(rData));
+      setRequirements(deduplicateRequirements(rData));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load tender details from backend.";
       setError(msg);
     } finally {
       setLoading(false);
     }
-  }, [id, isDemo, isAuthenticated]);
+  }, [id, isDemoPreview, isAuthenticated]);
 
   useEffect(() => {
     loadTenderData();
@@ -139,36 +140,6 @@ export default function TenderDetailPage() {
     setExtractingReqs(true);
     setError(null);
 
-    if (isDemo) {
-      const demoJobId = `job_extract_${Date.now()}`;
-      setActiveJobId(demoJobId);
-
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => {
-          reject(new Error("Synthetic extraction timed out (8s limit exceeded). Please retry."));
-        }, 8000);
-      });
-
-      try {
-        await Promise.race([
-          demoStore.extractCriteria(id, demoJobId),
-          timeoutPromise,
-        ]);
-        await loadTenderData();
-        setActiveTab("requirements");
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Failed to extract criteria.";
-        setError(msg);
-        demoStore.updateJob(demoJobId, {
-          status: 'FAILED',
-          error_message: msg,
-        });
-      } finally {
-        setExtractingReqs(false);
-      }
-      return;
-    }
-
     try {
       const res = await api.extractRequirements(id);
       if (res.id) {
@@ -188,25 +159,6 @@ export default function TenderDetailPage() {
     if (!id || !newBidderName.trim()) return;
     setBidderSubmitting(true);
     setBidderError(null);
-
-    if (isDemo) {
-      demoStore.createBidder(id, {
-        bidder_name: newBidderName.trim(),
-        gstin: newGstin.trim() || undefined,
-        cin: newCin.trim() || undefined,
-        pan: newPan.trim() || undefined,
-        udyam_number: newUdyam.trim() || undefined,
-      });
-      await loadTenderData();
-      setShowAddBidder(false);
-      setNewBidderName("");
-      setNewGstin("");
-      setNewCin("");
-      setNewPan("");
-      setNewUdyam("");
-      setBidderSubmitting(false);
-      return;
-    }
 
     try {
       const created = await api.createBidder(id, {
@@ -249,7 +201,7 @@ export default function TenderDetailPage() {
     }
   };
 
-  if (!isAuthenticated && !isDemo) {
+  if (!isAuthenticated && !isDemoPreview) {
     return (
       <SessionRequired
         title="Session Required"
@@ -364,19 +316,19 @@ export default function TenderDetailPage() {
       </div>
 
       {/* Attached RFP Document Banner */}
-      {(tender as DemoTender)?.attached_file && (
+      {tender?.attached_file && (
         <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <FileText className="w-8 h-8 text-indigo-400 flex-shrink-0" />
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="text-sm font-semibold text-white font-mono">{(tender as DemoTender).attached_file?.filename}</h4>
+                <h4 className="text-sm font-semibold text-white font-mono">{tender.attached_file.filename}</h4>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-950 text-amber-300 border border-amber-800/60 font-bold">
                   SYNTHETIC DEMO DATA
                 </span>
               </div>
               <p className="text-xs text-slate-400 font-mono mt-0.5">
-                {(((tender as DemoTender).attached_file?.size_bytes ?? 0) / 1024 / 1024).toFixed(2)} MB • {(tender as DemoTender).attached_file?.content_type} • Uploaded {new Date((tender as DemoTender).attached_file?.uploaded_at ?? 0).toLocaleDateString()}
+                {(((tender.attached_file.size_bytes ?? 0) / 1024 / 1024)).toFixed(2)} MB • {tender.attached_file.content_type} • Uploaded {new Date(tender.attached_file.uploaded_at ?? 0).toLocaleDateString()}
               </p>
             </div>
           </div>
@@ -545,7 +497,7 @@ export default function TenderDetailPage() {
 
       {/* Tab Content: Policy & Clause Intelligence */}
       {activeTab === "intelligence" && (
-        <ClauseIntelligencePanel tenderId={id} isDemo={isDemo} />
+        <ClauseIntelligencePanel tenderId={id} isDemo={isDemoPreview} />
       )}
 
       {/* Add Bidder Modal */}

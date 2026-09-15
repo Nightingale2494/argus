@@ -227,66 +227,41 @@ def seed_demo_data() -> None:
     Session = sessionmaker(bind=engine)
     db = Session()
 
+    import asyncio
+    from app.api.v1.demo import _execute_demo_seed
+    from app.models.domain import ProcessingJob
+    from app.schemas.canonical import JobStage, JobStatus
+
+    job = ProcessingJob(
+        target_type="DEMO",
+        target_id="demo_scenario",
+        job_type="DEMO_SEED",
+        status=JobStatus.RUNNING,
+        current_stage=JobStage.INGESTION,
+        progress=10,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
     try:
-        tender = db.query(Tender).filter(Tender.tender_number == DEMO_TENDER_NUMBER).first()
-        if not tender:
-            tender = Tender(
-                tender_number=DEMO_TENDER_NUMBER,
-                title=(
-                    "Supply of IT Infrastructure Equipment — Server Racks, UPS Systems, "
-                    "and Networking Hardware"
-                ),
-                category="IT Hardware / Data Centre Infrastructure",
-                authority=(
-                    "National Informatics Centre (NIC), Ministry of Electronics and "
-                    "Information Technology"
-                ),
-                budget=50000000.0,
-                status=JobStatus.COMPLETED,
-                metadata_json={"seed_source": "SYNTHETIC_DEMO"},
+        completed = asyncio.run(
+            _execute_demo_seed(
+                db=db,
+                actor_id="seed_script",
+                actor_role="ADMIN",
+                job=job,
             )
-            db.add(tender)
-            db.commit()
-            db.refresh(tender)
-            print(f"  Created tender {tender.tender_number} ({tender.id})")
-        else:
-            print(f"  Reusing existing tender {tender.tender_number} ({tender.id})")
-
-        existing_clauses = {
-            r.clause
-            for r in db.query(TenderRequirement).filter(TenderRequirement.tender_id == tender.id).all()
-        }
-        added_requirements = 0
-        for requirement in build_requirements(tender.id):
-            if requirement.clause in existing_clauses:
-                continue
-            db.add(requirement)
-            added_requirements += 1
-
-        existing_bidder_names = {
-            b.bidder_name for b in db.query(Bidder).filter(Bidder.tender_id == tender.id).all()
-        }
-        added_bidders = 0
-        for bidder in build_bidders(tender.id):
-            if bidder.bidder_name in existing_bidder_names:
-                continue
-            db.add(bidder)
-            added_bidders += 1
-
-        db.commit()
-        print(f"  Added {added_requirements} approved requirement(s)")
-        print(f"  Added {added_bidders} bidder(s)")
-        print(
-            "Demo data seeded successfully. Upload the matching PDFs from data/demo/pdf/ "
-            "to exercise the full ingestion pipeline."
         )
+        print(f"  Demo scenario successfully seeded. Job ID: {completed.id}, Status: {completed.status}")
+        print("  Real statutory verification, compliance matrices, and audit records generated.")
     except Exception:
         db.rollback()
         raise
-
     finally:
         db.close()
 
 
 if __name__ == "__main__":
     seed_demo_data()
+

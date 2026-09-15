@@ -1814,6 +1814,82 @@
         ]
       }
     },
+    "/api/v1/demo/status": {
+      "get": {
+        "tags": [
+          "Demo Management"
+        ],
+        "summary": "Get Demo Status",
+        "description": "Returns availability and fixture version status for the synthetic demo scenario.",
+        "operationId": "get_demo_status_api_v1_demo_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoStatusRead"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/seed": {
+      "post": {
+        "tags": [
+          "Demo Management"
+        ],
+        "summary": "Seed Demo",
+        "description": "Deterministically seeds the canonical ARGUS demo scenario and runs the real backend pipeline.",
+        "operationId": "seed_demo_api_v1_demo_seed_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRead"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/demo/reset": {
+      "post": {
+        "tags": [
+          "Demo Management"
+        ],
+        "summary": "Reset Demo",
+        "description": "Safely resets ONLY demo-isolated entities without touching authentic data, then re-seeds.",
+        "operationId": "reset_demo_api_v1_demo_reset_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRead"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -1931,6 +2007,16 @@
               }
             ],
             "title": "Email"
+          },
+          "is_demo_operator": {
+            "type": "boolean",
+            "title": "Is Demo Operator",
+            "default": false
+          },
+          "evaluation_mode": {
+            "type": "boolean",
+            "title": "Evaluation Mode",
+            "default": false
           }
         },
         "type": "object",
@@ -2633,6 +2719,51 @@
         ],
         "title": "ComplianceStatus",
         "description": "Deterministic compliance evaluation states."
+      },
+      "DemoStatusRead": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "seeded": {
+            "type": "boolean",
+            "title": "Seeded"
+          },
+          "fixture_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixture Version"
+          },
+          "expected_fixture_version": {
+            "type": "string",
+            "title": "Expected Fixture Version"
+          },
+          "healthy": {
+            "type": "boolean",
+            "title": "Healthy"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "seeded",
+          "expected_fixture_version",
+          "healthy",
+          "message"
+        ],
+        "title": "DemoStatusRead",
+        "description": "Status report for the deterministic synthetic demo scenario."
       },
       "DocumentRead": {
         "properties": {
@@ -4666,7 +4797,9 @@
           "LIVE",
           "PORTAL_CACHED",
           "DEMO",
-          "DOCUMENT"
+          "DOCUMENT",
+          "DEMO_SYNTHETIC",
+          "CONFIGURED_UNVERIFIED"
         ],
         "title": "VerificationMode",
         "description": "Operational modes for verification data sourcing."
@@ -4723,6 +4856,22 @@
           "mode": {
             "$ref": "#/components/schemas/VerificationMode",
             "default": "LIVE"
+          },
+          "provider_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Mode"
+          },
+          "is_synthetic": {
+            "type": "boolean",
+            "title": "Is Synthetic",
+            "default": false
           },
           "checked_at": {
             "type": "string",

@@ -24,7 +24,6 @@ import {
   Filter,
 } from "lucide-react";
 import { api } from "@/services/api";
-import { demoStore } from "@/services/demo-store";
 import type {
   DeepAuditSynthesis,
   DeepAuditStatusResponse,
@@ -60,20 +59,6 @@ export function DeepAuditInvestigationWorkspace({
     if (!bidderId) return;
     setError(null);
     try {
-      if (isDemo) {
-        const stored = demoStore.getDeepAuditSynthesis(bidderId);
-        if (stored) {
-          setSynthesis(stored);
-          setStatus(stored.status || "COMPLETED");
-        } else {
-          // If no stored synthesis exists yet in demo, run it automatically
-          const created = await demoStore.runDeepAudit(bidderId);
-          setSynthesis(created);
-          setStatus("COMPLETED");
-        }
-        return;
-      }
-
       const res: DeepAuditStatusResponse = await api.getLatestDeepAudit(bidderId);
       setStatus(res.status || "NOT_STARTED");
       if (res.synthesis) {
@@ -88,15 +73,15 @@ export function DeepAuditInvestigationWorkspace({
       setError(err instanceof Error ? err.message : "Failed to load Deep Audit synthesis");
       setStatus("FAILED");
     }
-  }, [bidderId, isDemo]);
+  }, [bidderId]);
 
   useEffect(() => {
     fetchInvestigation();
   }, [fetchInvestigation]);
 
-  // Polling for running authentic jobs
+  // Polling for running jobs
   useEffect(() => {
-    if (!running || isDemo) return;
+    if (!running) return;
 
     const interval = setInterval(async () => {
       try {
@@ -119,22 +104,20 @@ export function DeepAuditInvestigationWorkspace({
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [running, bidderId, isDemo]);
+  }, [running, bidderId]);
 
   const handleTriggerAudit = async () => {
     setError(null);
     setRunning(true);
     setStatus("RUNNING");
     try {
-      if (isDemo) {
-        const res = await demoStore.runDeepAudit(bidderId);
-        setSynthesis(res);
-        setStatus("COMPLETED");
-        setRunning(false);
-        return;
-      }
-
       await api.triggerDeepAudit(bidderId);
+      const res: DeepAuditStatusResponse = await api.getLatestDeepAudit(bidderId);
+      setStatus(res.status || "RUNNING");
+      if (res.synthesis) setSynthesis(res.synthesis);
+      if (res.status === "COMPLETED") {
+        setRunning(false);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to trigger Deep Audit");
       setRunning(false);

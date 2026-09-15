@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     REQUEST_TIMEOUT_SECONDS: float = 10.0
     RUN_REAL_INTEGRATION_TESTS: bool = False
     ARGUS_RUN_INLINE_WORKER: bool = False
+    ALLOW_DEMO_SEED: bool = False
 
     # Security & CORS Config
     CORS_ALLOWED_ORIGINS: str | list[str] = "http://localhost:3000"

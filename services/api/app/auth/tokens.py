@@ -11,6 +11,8 @@ def create_access_token(
     name: str | None = None,
     email: str | None = None,
     expires_delta: timedelta | None = None,
+    is_demo_operator: bool = False,
+    evaluation_mode: bool = False,
 ) -> str:
     """Generates a signed JWT access token containing standard claims and role assignment."""
     if isinstance(role, UserRole):
@@ -36,6 +38,10 @@ def create_access_token(
         payload["name"] = name
     if email:
         payload["email"] = email
+    if is_demo_operator:
+        payload["is_demo_operator"] = True
+    if evaluation_mode:
+        payload["evaluation_mode"] = True
 
     token = jwt.encode(
         payload,
@@ -81,4 +87,6 @@ def decode_access_token(token: str) -> AuthenticatedPrincipal:
         name=payload.get("name"),
         role=user_role,
         email=payload.get("email"),
+        is_demo_operator=bool(payload.get("is_demo_operator", False)),
+        evaluation_mode=bool(payload.get("evaluation_mode", False)),
     )

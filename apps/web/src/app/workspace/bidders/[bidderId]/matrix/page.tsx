@@ -8,7 +8,6 @@ import {
   RefreshCw, Filter, Eye, AlertCircle, ShieldCheck, FileSearch
 } from "lucide-react";
 import { api } from "@/services/api";
-import { demoStore } from "@/services/demo-store";
 import { ComplianceMatrixRow } from "@/services/types";
 import { EvidenceDrawer } from "@/components/ui/EvidenceDrawer";
 import { SessionRequired } from "@/components/ui/SessionRequired";
@@ -39,29 +38,14 @@ export default function ComplianceMatrixPage() {
     }
   }, []);
 
-  const storedDemoBidder = bidderId ? demoStore.getBidder(bidderId) : null;
-  const isDemo = isDemoPreview || Boolean(storedDemoBidder);
+  const isDemo = isDemoPreview;
 
   const loadMatrix = useCallback(async () => {
     if (!bidderId) return;
     setLoading(true);
     setError(null);
 
-    if (isDemo) {
-      const bidder = demoStore.getBidder(bidderId);
-      if (!bidder) {
-        setMatrix([]);
-        setError("Bidder Not Found");
-        setLoading(false);
-        return;
-      }
-      const demoMatrix = demoStore.getComplianceMatrix(bidderId);
-      setMatrix(demoMatrix?.rows || []);
-      setLoading(false);
-      return;
-    }
-
-    if (!isAuthenticated) {
+    if (!isAuthenticated && !isDemoPreview) {
       setLoading(false);
       return;
     }
@@ -74,7 +58,7 @@ export default function ComplianceMatrixPage() {
     } finally {
       setLoading(false);
     }
-  }, [bidderId, isDemo, isAuthenticated]);
+  }, [bidderId, isDemoPreview, isAuthenticated]);
 
   useEffect(() => {
     loadMatrix();

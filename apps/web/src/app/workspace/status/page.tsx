@@ -8,12 +8,11 @@ import {
 } from "lucide-react";
 import { apiClient, ApiError } from "@/services/api";
 import { ProviderHealthRead, IntegrationsHealthResponse, AuthenticatedPrincipal } from "@/types/api";
-import { MOCK_PROVIDERS, MOCK_INTEGRATIONS_HEALTH } from "@/services/mock-data";
 import { useAuth } from "@/hooks/useAuth";
 import { resolveProviderStatus } from "@/lib/provider-status";
 
 export default function StatusPage() {
-  const { isDemoPreview, isAuthenticated, principal } = useAuth();
+  const { isDemoPreview, isAuthenticated } = useAuth();
   
   // Discrete Health States
   const [apiHealth, setApiHealth] = useState<"CONNECTED" | "UNAVAILABLE" | "CHECKING">("CHECKING");
@@ -29,18 +28,7 @@ export default function StatusPage() {
     setLoading(true);
     setError(null);
 
-    // 1. In Demo Preview
-    if (isDemoPreview) {
-      setApiHealth("CONNECTED");
-      setAuthHealth("AUTHENTICATED");
-      setAuthPrincipal(principal);
-      setProviders(MOCK_PROVIDERS);
-      setIntegrations(MOCK_INTEGRATIONS_HEALTH);
-      setLoading(false);
-      return;
-    }
-
-    // 2. Live Query: Backend API Health (GET /health)
+    // 1. Backend API Health (GET /health)
     try {
       const hData = await apiClient.getHealth();
       if (hData && (hData.status === "ok" || hData.status === "healthy")) {
@@ -87,7 +75,7 @@ export default function StatusPage() {
     }
 
     setLoading(false);
-  }, [isDemoPreview, isAuthenticated, principal]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     loadStatus();

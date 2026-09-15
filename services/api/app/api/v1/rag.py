@@ -47,6 +47,7 @@ PROCEDURAL_WORDS = {
     "requirements", "criteria", "tender", "bid", "bidders", "procurement", "clause",
     "section", "rule", "document", "documents", "qualification", "eligibility",
     "evaluation", "compliance", "mandatory", "specified", "allowed", "permitted",
+    "require", "required", "need", "needed",
     "much", "rate", "fee", "threshold", "thresholds", "penalty", "liquidated",
     "damages", "delivery", "delayed", "delay", "period", "schedule", "exact",
     "terms", "conditions", "contract", "general", "special", "payment", "statutory",
@@ -105,7 +106,7 @@ def classify_query_intent(query: str) -> dict:
     is_experience = any(t in q for t in ["experience", "similar work", "past performance", "similar project", "track record"])
     is_warranty = any(t in q for t in ["warranty", "guarantee", "defect liability"])
     is_jv = any(t in q for t in ["joint venture", "consortium", "jv", "consortia"])
-    is_numeric = any(t in q for t in ["how much", "what is the amount", "minimum amount", "percentage", "years", "deadline", "duration", "threshold", "period"])
+    is_numeric = any(t in q for t in ["how much", "what is the amount", "minimum amount", "percentage", "years", "deadline", "duration", "threshold", "period", "turnover"])
 
     if is_emd and is_exemption:
         intent = "EMD_EXEMPTION"

@@ -11,7 +11,6 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { apiClient } from '@/services/api';
-import { demoStore } from '@/services/demo-store';
 import type { TenderCreate, TenderRead } from '@/types/api';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -37,16 +36,20 @@ export default function TendersListPage() {
       setLoading(true);
       setError(null);
 
-      if (isDemoPreview) {
-        const demoTenders = demoStore.getTenders();
-        setTenders(demoTenders);
+      if (!isAuthenticated && !isDemoPreview) {
         setLoading(false);
         return;
       }
 
-      if (!isAuthenticated) {
-        setLoading(false);
-        return;
+      if (isDemoPreview) {
+        try {
+          const demoStatus = await apiClient.getDemoStatus();
+          if (!demoStatus.seeded) {
+            await apiClient.seedDemo();
+          }
+        } catch (seedErr) {
+          console.warn('Demo status/seed check error:', seedErr);
+        }
       }
 
       const data = await apiClient.getTenders();
@@ -65,13 +68,6 @@ export default function TendersListPage() {
   const handleCreateTender = async (data: TenderCreate, rfpFile?: File) => {
     try {
       setIsCreating(true);
-
-      if (isDemoPreview) {
-        demoStore.createTender(data, rfpFile);
-        await loadTenders();
-        setCreateModalOpen(false);
-        return;
-      }
 
       const newTender = await apiClient.createTender(data);
       if (rfpFile) {

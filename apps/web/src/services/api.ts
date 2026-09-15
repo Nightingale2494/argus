@@ -28,6 +28,7 @@ import type {
   TenderRequirementCreate,
   TenderRequirementRead,
   VerificationResultRead,
+  DemoStatusRead,
 } from '@/types/api';
 import type {
   AuditEventCategory,
@@ -37,7 +38,6 @@ import type {
   RAGExplainResponse,
   RawAuditEvent,
 } from '@/services/types';
-import { demoStore } from './demo-store';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
 
@@ -350,8 +350,6 @@ export const apiClient = {
 
   // Jobs & SSE
   async getJob(jobId: string): Promise<JobRead> {
-    const demoJob = demoStore.getJob(jobId);
-    if (demoJob) return demoJob;
     return request<JobRead>(`/api/v1/jobs/${encodeURIComponent(jobId)}`);
   },
 
@@ -407,6 +405,23 @@ export const apiClient = {
 
   async getIntegrationHealth(): Promise<IntegrationsHealthResponse> {
     return this.getHealthIntegrations();
+  },
+
+  // Demo Controls
+  async getDemoStatus(): Promise<DemoStatusRead> {
+    return request<DemoStatusRead>('/api/v1/demo/status');
+  },
+
+  async seedDemo(): Promise<JobRead> {
+    return request<JobRead>('/api/v1/demo/seed', {
+      method: 'POST',
+    });
+  },
+
+  async resetDemo(): Promise<JobRead> {
+    return request<JobRead>('/api/v1/demo/reset', {
+      method: 'POST',
+    });
   },
 };
 

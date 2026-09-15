@@ -355,6 +355,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bidders/{id}/deep-audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Deep Audit
+         * @description Enqueues an autonomous advisory Deep Audit investigation for a bidder.
+         *
+         *     Returns HTTP 202 with job_id and status=QUEUED.
+         *     Strict Invariant:
+         *     - Advisory output only.
+         *     - Never mutates RuleEvaluation.status or Bidder.status.
+         */
+        post: operations["trigger_deep_audit_api_v1_bidders__id__deep_audit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bidders/{id}/deep-audit/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Latest Deep Audit
+         * @description Retrieves the latest advisory Deep Audit synthesis for a bidder.
+         */
+        get: operations["get_latest_deep_audit_api_v1_bidders__id__deep_audit_latest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/{document_id}": {
         parameters: {
             query?: never;
@@ -466,6 +511,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/rag/explain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Explain Policy Or Clause
+         * @description Provides advisory policy explanation and clause intelligence for procurement officers.
+         *
+         *     Strict Invariants:
+         *     - Purely advisory: does NOT mutate compliance state, bidder status, or qualification outcome.
+         *     - All citations scoped strictly to specified tender_id or public policy documents.
+         *     - direct_answer synthesized ONLY from validated direct_citations.
+         */
+        post: operations["explain_policy_or_clause_api_v1_rag_explain_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit/events": {
         parameters: {
             query?: never;
@@ -500,6 +570,66 @@ export interface paths {
         get: operations["list_provider_health_api_v1_providers_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/demo/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Demo Status
+         * @description Returns availability and fixture version status for the synthetic demo scenario.
+         */
+        get: operations["get_demo_status_api_v1_demo_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/demo/seed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Seed Demo
+         * @description Deterministically seeds the canonical ARGUS demo scenario and runs the real backend pipeline.
+         */
+        post: operations["seed_demo_api_v1_demo_seed_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/demo/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Demo
+         * @description Safely resets ONLY demo-isolated entities without touching authentic data, then re-seeds.
+         */
+        post: operations["reset_demo_api_v1_demo_reset_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -613,7 +743,9 @@ export interface components {
             /** Pan */
             pan?: string | null;
             /** Metadata Json */
-            metadata_json?: Record<string, never> | null;
+            metadata_json?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** BidderRead */
         BidderRead: {
@@ -628,7 +760,9 @@ export interface components {
             /** Pan */
             pan?: string | null;
             /** Metadata Json */
-            metadata_json?: Record<string, never> | null;
+            metadata_json?: {
+                [key: string]: unknown;
+            } | null;
             /** Id */
             id: string;
             /** Tender Id */
@@ -645,19 +779,13 @@ export interface components {
         };
         /** Body_upload_bidder_document_api_v1_bidders__bidder_id__documents_post */
         Body_upload_bidder_document_api_v1_bidders__bidder_id__documents_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             document_type: components["schemas"]["DocumentType"];
         };
         /** Body_upload_tender_document_api_v1_tenders__tender_id__documents_post */
         Body_upload_tender_document_api_v1_tenders__tender_id__documents_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** @default TENDER */
             document_type: components["schemas"]["DocumentType"];
@@ -700,11 +828,21 @@ export interface components {
             /** Evidence Ids */
             evidence_ids?: string[];
             /** Evidence Refs */
-            evidence_refs?: Record<string, never>[];
+            evidence_refs?: {
+                [key: string]: unknown;
+            }[];
             /** Verification Refs */
-            verification_refs?: Record<string, never>[];
+            verification_refs?: {
+                [key: string]: unknown;
+            }[];
             /** Source Refs */
-            source_refs?: Record<string, never>[];
+            source_refs?: {
+                [key: string]: unknown;
+            }[];
+            /** Advisory Rag Contexts */
+            advisory_rag_contexts?: {
+                [key: string]: unknown;
+            }[];
             /**
              * Review Required
              * @default false
@@ -770,9 +908,13 @@ export interface components {
              */
             rule_version: string | null;
             /** Summary Json */
-            summary_json?: Record<string, never>;
+            summary_json?: {
+                [key: string]: unknown;
+            };
             /** Input Snapshot Json */
-            input_snapshot_json?: Record<string, never>;
+            input_snapshot_json?: {
+                [key: string]: unknown;
+            };
         };
         /** ComplianceRunSummaryRead */
         ComplianceRunSummaryRead: {
@@ -810,6 +952,24 @@ export interface components {
          * @enum {string}
          */
         ComplianceStatus: "PASS" | "FAIL" | "REVIEW_REQUIRED" | "UNKNOWN" | "NOT_APPLICABLE";
+        /**
+         * DemoStatusRead
+         * @description Status report for the deterministic synthetic demo scenario.
+         */
+        DemoStatusRead: {
+            /** Enabled */
+            enabled: boolean;
+            /** Seeded */
+            seeded: boolean;
+            /** Fixture Version */
+            fixture_version?: string | null;
+            /** Expected Fixture Version */
+            expected_fixture_version: string;
+            /** Healthy */
+            healthy: boolean;
+            /** Message */
+            message: string;
+        };
         /** DocumentRead */
         DocumentRead: {
             document_type: components["schemas"]["DocumentType"];
@@ -828,7 +988,9 @@ export interface components {
             /** Sha256 */
             sha256?: string | null;
             /** Metadata Json */
-            metadata_json?: Record<string, never> | null;
+            metadata_json?: {
+                [key: string]: unknown;
+            } | null;
             /** Id */
             id: string;
             /** Facts */
@@ -858,7 +1020,9 @@ export interface components {
             /** Page Number */
             page_number?: number | null;
             /** Location Metadata */
-            location_metadata?: Record<string, never> | null;
+            location_metadata?: {
+                [key: string]: unknown;
+            } | null;
             /** Bidder Id */
             bidder_id?: string | null;
             /** Tender Id */
@@ -910,7 +1074,9 @@ export interface components {
              */
             confidence: number;
             /** Metadata Json */
-            metadata_json?: Record<string, never> | null;
+            metadata_json?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Created At
              * Format: date-time
@@ -988,7 +1154,9 @@ export interface components {
             /** Message */
             message: string;
             /** Payload */
-            payload?: Record<string, never> | null;
+            payload?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Timestamp
              * Format: date-time
@@ -1029,7 +1197,7 @@ export interface components {
          * @description Processing workflow stages.
          * @enum {string}
          */
-        JobStage: "UPLOAD" | "PARSING" | "OCR" | "EXTRACTION" | "VERIFICATION" | "COMPLIANCE" | "RISK_ANALYSIS" | "REPORTING";
+        JobStage: "UPLOAD" | "PARSING" | "OCR" | "EXTRACTION" | "VERIFICATION" | "COMPLIANCE" | "RISK_ANALYSIS" | "REPORTING" | "DEEP_AUDIT" | "LOAD_CONTEXT" | "RETRIEVE_POLICY" | "COLLECT_EVIDENCE" | "ANALYZE_CONFLICTS" | "GENERATE_EXPLANATION" | "HUMAN_REVIEW_REQUIRED";
         /**
          * JobStatus
          * @description Processing job lifecycle states.
@@ -1070,6 +1238,58 @@ export interface components {
          * @enum {string}
          */
         ProviderOperationalHealth: "AVAILABLE" | "DEGRADED" | "UNAVAILABLE" | "UNKNOWN";
+        /** RAGExplainRequest */
+        RAGExplainRequest: {
+            /** Query */
+            query: string;
+            /** Tender Id */
+            tender_id?: string | null;
+            /** Clause */
+            clause?: string | null;
+            /** Field */
+            field?: string | null;
+            /**
+             * Top K
+             * @default 5
+             */
+            top_k: number;
+        };
+        /** RAGExplainResponse */
+        RAGExplainResponse: {
+            /** Query */
+            query: string;
+            /** Explanation */
+            explanation: string;
+            /** Direct Answer */
+            direct_answer?: string | null;
+            /** Related Context */
+            related_context?: string | null;
+            /** Result Class */
+            result_class?: string | null;
+            /** Citations */
+            citations?: components["schemas"]["EvidenceRead"][];
+            /** Related Citations */
+            related_citations?: components["schemas"]["EvidenceRead"][];
+            /**
+             * Is Advisory
+             * @default true
+             */
+            is_advisory: boolean;
+            /**
+             * Advisory Disclaimer
+             * @default This explanation is purely advisory context generated from retrieved policy clauses. It does NOT decide qualification or override deterministic compliance rules.
+             */
+            advisory_disclaimer: string;
+            /**
+             * Retrieved At
+             * Format: date-time
+             */
+            retrieved_at: string;
+            /** Error Code */
+            error_code?: string | null;
+            /** Error Message */
+            error_message?: string | null;
+        };
         /** RAGQueryRequest */
         RAGQueryRequest: {
             /** Query */
@@ -1077,7 +1297,9 @@ export interface components {
             /** Tender Id */
             tender_id?: string | null;
             /** Filters */
-            filters?: Record<string, never> | null;
+            filters?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Top K
              * @default 5
@@ -1124,6 +1346,14 @@ export interface components {
              * @default 0
              */
             audit_trail_count: number;
+            /** Snapshot Hash */
+            snapshot_hash?: string | null;
+            /** Hash Algorithm */
+            hash_algorithm?: string | null;
+            /** Canonicalization Version */
+            canonicalization_version?: string | null;
+            /** Snapshot Integrity Verified */
+            snapshot_integrity_verified?: boolean | null;
         };
         /**
          * RequirementType
@@ -1137,7 +1367,9 @@ export interface components {
             /** Id */
             id: string;
             /** Metadata */
-            metadata?: Record<string, never>;
+            metadata?: {
+                [key: string]: unknown;
+            };
         };
         /**
          * RiskInputType
@@ -1176,7 +1408,9 @@ export interface components {
             /** Source Mode */
             source_mode?: string | null;
             /** Metadata Json */
-            metadata_json?: Record<string, never>;
+            metadata_json?: {
+                [key: string]: unknown;
+            };
             /**
              * Created At
              * Format: date-time
@@ -1237,6 +1471,8 @@ export interface components {
             expected_value?: unknown | null;
             /** Evidence Ids */
             evidence_ids?: string[];
+            /** Advisory Rag Context Ids */
+            advisory_rag_context_ids?: string[];
             /**
              * Rule Version
              * @default 1.0
@@ -1265,7 +1501,9 @@ export interface components {
             /** Raw Document Uri */
             raw_document_uri?: string | null;
             /** Metadata Json */
-            metadata_json?: Record<string, never> | null;
+            metadata_json?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** TenderRead */
         TenderRead: {
@@ -1287,7 +1525,9 @@ export interface components {
             /** Raw Document Uri */
             raw_document_uri?: string | null;
             /** Metadata Json */
-            metadata_json?: Record<string, never> | null;
+            metadata_json?: {
+                [key: string]: unknown;
+            } | null;
             /** Id */
             id: string;
             /** @default QUEUED */
@@ -1353,7 +1593,9 @@ export interface components {
             /** Document Id */
             document_id?: string | null;
             /** Metadata Json */
-            metadata_json?: Record<string, never> | null;
+            metadata_json?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** TenderRequirementRead */
         TenderRequirementRead: {
@@ -1403,7 +1645,9 @@ export interface components {
             /** Document Id */
             document_id?: string | null;
             /** Metadata Json */
-            metadata_json?: Record<string, never> | null;
+            metadata_json?: {
+                [key: string]: unknown;
+            } | null;
             /** Id */
             id: string;
             /** Tender Id */
@@ -1428,13 +1672,17 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
         /**
          * VerificationMode
          * @description Operational modes for verification data sourcing.
          * @enum {string}
          */
-        VerificationMode: "LIVE" | "PORTAL_CACHED" | "DEMO" | "DOCUMENT";
+        VerificationMode: "LIVE" | "PORTAL_CACHED" | "DEMO" | "DOCUMENT" | "DEMO_SYNTHETIC" | "CONFIGURED_UNVERIFIED";
         /** VerificationResultRead */
         VerificationResultRead: {
             /** Id */
@@ -1453,6 +1701,13 @@ export interface components {
             source: components["schemas"]["VerificationSource"];
             /** @default LIVE */
             mode: components["schemas"]["VerificationMode"];
+            /** Provider Mode */
+            provider_mode?: string | null;
+            /**
+             * Is Synthetic
+             * @default false
+             */
+            is_synthetic: boolean;
             /**
              * Checked At
              * Format: date-time
@@ -1463,7 +1718,9 @@ export interface components {
             /** Error Message */
             error_message?: string | null;
             /** Location Metadata */
-            location_metadata?: Record<string, never> | null;
+            location_metadata?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * VerificationSource
@@ -2225,6 +2482,68 @@ export interface operations {
             };
         };
     };
+    trigger_deep_audit_api_v1_bidders__id__deep_audit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_latest_deep_audit_api_v1_bidders__id__deep_audit_latest_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_document_api_v1_documents__document_id__get: {
         parameters: {
             query?: never;
@@ -2413,6 +2732,39 @@ export interface operations {
             };
         };
     };
+    explain_policy_or_clause_api_v1_rag_explain_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RAGExplainRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RAGExplainResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_audit_events_api_v1_audit_events_get: {
         parameters: {
             query?: {
@@ -2466,6 +2818,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProviderHealthRead"][];
+                };
+            };
+        };
+    };
+    get_demo_status_api_v1_demo_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemoStatusRead"];
+                };
+            };
+        };
+    };
+    seed_demo_api_v1_demo_seed_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRead"];
+                };
+            };
+        };
+    };
+    reset_demo_api_v1_demo_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRead"];
                 };
             };
         };
@@ -2547,7 +2959,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

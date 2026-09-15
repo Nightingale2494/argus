@@ -7,7 +7,6 @@ import {
   ShieldCheck, Printer, Download, ArrowLeft, RefreshCw, AlertCircle, FileText, FileSearch
 } from "lucide-react";
 import { api } from "@/services/api";
-import { demoStore } from "@/services/demo-store";
 import { ReportRead } from "@/services/types";
 import { SessionRequired } from "@/components/ui/SessionRequired";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,8 +15,6 @@ export default function ReportPage() {
   const params = useParams();
   const bidderId = params?.bidderId as string;
   const { isAuthenticated, isDemoPreview } = useAuth();
-  const storedDemoBidder = bidderId ? demoStore.getBidder(bidderId) : null;
-  const isDemo = isDemoPreview || Boolean(storedDemoBidder);
 
   const [report, setReport] = useState<ReportRead | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,25 +25,23 @@ export default function ReportPage() {
     setLoading(true);
     setError(null);
 
-    if (isDemo) {
-      const demoReport = demoStore.getReport(bidderId);
-      if (!demoReport) {
-        setReport(null);
-        setError("Bidder Report Not Found");
-        setLoading(false);
-        return;
-      }
-      setReport(demoReport);
-      setLoading(false);
-      return;
-    }
-
-    if (!isAuthenticated) {
+    if (!isAuthenticated && !isDemoPreview) {
       setLoading(false);
       return;
     }
 
     try {
+      if (isDemoPreview) {
+        try {
+          const demoStatus = await api.getDemoStatus();
+          if (!demoStatus.seeded) {
+            await api.seedDemo();
+          }
+        } catch (seedErr) {
+          console.warn('Demo status/seed check error:', seedErr);
+        }
+      }
+
       const data = await api.getReport(bidderId);
       setReport(data);
     } catch (err: unknown) {
@@ -54,7 +49,7 @@ export default function ReportPage() {
     } finally {
       setLoading(false);
     }
-  }, [bidderId, isDemo, isAuthenticated]);
+  }, [bidderId, isDemoPreview, isAuthenticated]);
 
   useEffect(() => {
     loadReport();
@@ -75,7 +70,7 @@ export default function ReportPage() {
     URL.revokeObjectURL(url);
   };
 
-  if (!isAuthenticated && !isDemo) {
+  if (!isAuthenticated && !isDemoPreview) {
     return (
       <SessionRequired
         title="Session Required"
@@ -120,7 +115,7 @@ export default function ReportPage() {
   const verifications = report?.verification_results ?? [];
   const matrixRows = report?.compliance_matrix?.rows ?? [];
 
-  const querySuffix = isDemo ? '?mode=demo' : '';
+  const querySuffix = isDemoPreview ? '?mode=demo' : '';
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">

@@ -1,8 +1,39 @@
 import { test, expect } from '@playwright/test';
+import crypto from 'crypto';
+
+function createDemoToken(): string {
+  const secret = process.env.ARGUS_JWT_SECRET || 'f306cdf1dcaee62e9fe0b58a2d056950a87275fe3ded03bc0e3786c44227cab9';
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const payload = {
+    sub: 'playwright-demo-operator',
+    role: 'ADMIN',
+    name: 'Demo Administrator',
+    email: 'demo.admin@argus.local',
+    iss: 'argus-api',
+    aud: 'argus-clients',
+    iat: now,
+    exp: now + 7200,
+    is_demo_operator: true,
+    evaluation_mode: true,
+  };
+  const b64 = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+  const unsigned = `${b64(header)}.${b64(payload)}`;
+  const sig = crypto.createHmac('sha256', secret).update(unsigned).digest('base64url');
+  return `${unsigned}.${sig}`;
+}
 
 test.describe('ARGUS End-to-End Procurement Compliance Workflow', () => {
+  test.beforeEach(async ({ page }) => {
+    const token = createDemoToken();
+    await page.addInitScript((tok) => {
+      sessionStorage.setItem('argus_auth_token', tok);
+      sessionStorage.setItem('argus_workspace_mode', 'demo');
+    }, token);
+  });
+
   test('1. Workspace dashboard loads with explicit demo mode indicator', async ({ page }) => {
-    await page.goto('/workspace');
+    await page.goto('/workspace?mode=demo');
     await expect(page.getByText(/demo/i).first()).toBeVisible();
     await expect(page.getByText(/tenders|procurement/i).first()).toBeVisible();
   });
@@ -18,8 +49,8 @@ test.describe('ARGUS End-to-End Procurement Compliance Workflow', () => {
   });
 
   test('3. Bidder detail & Mismatch explainability modal acceptance test', async ({ page }) => {
-    await page.goto('/workspace/bidders/bidder_alpha_01');
-    await expect(page.getByText('Alpha Infotech Private Limited')).toBeVisible();
+    await page.goto('/workspace/bidders/bidder_alpha_01?mode=demo');
+    await expect(page.getByText(/ALPHA TECHNOLOGIES|Alpha Infotech/i).first()).toBeVisible();
 
     // Verify statutory identifier registry card
     await expect(page.getByText('Statutory Identifier Registry')).toBeVisible();

@@ -103,8 +103,16 @@ def _parse_date(value: str):
         except ValueError: pass
     return None
 
+def _find_clause_for_pos(text: str, pos: int) -> str:
+    prefix = text[:pos]
+    matches = list(re.finditer(r"(?m)^\s*(\d+(?:\.\d+)+)\s+", prefix))
+    if matches:
+        return matches[-1].group(1)
+    clause_match = re.search(r"(?m)^\s*(\d+(?:\.\d+)*)\s*[).:-]", text)
+    return clause_match.group(1) if clause_match else "UNNUMBERED"
+
 def extract_tender(file_path: Union[str, Path], gateway: ModelGateway = None) -> list[TenderRequirementDraft]:
-    """Extract only unambiguous turnover thresholds; all other clauses remain for review/model extraction."""
+    """Extract machine-readable eligibility requirements with exact clause and page provenance."""
     pages = parse_document(file_path)
     if gateway and gateway.provider:
         content = "\n\n".join("PAGE %s:\n%s" % page for page in pages)
@@ -112,10 +120,9 @@ def extract_tender(file_path: Union[str, Path], gateway: ModelGateway = None) ->
         return output.requirements
     requirements: list[TenderRequirementDraft] = []
     for page, text in pages:
-        clause_match = re.search(r"(?m)^\s*(\d+(?:\.\d+)*)\s*[).:-]", text)
-        clause = clause_match.group(1) if clause_match else "UNNUMBERED"
         match = re.search(r"(?:minimum\s+)?(?:annual\s+)?turnover[^\n.]{0,100}?(?:INR|Rs\.?|₹)\s*([\d,]+)", text, re.I)
         if match:
+            clause = _find_clause_for_pos(text, match.start())
             requirements.append(TenderRequirementDraft(clause=clause, requirement_type=RequirementType.TURNOVER, field="financial.average_annual_turnover", operator=Operator.GTE, expected_value=int(match.group(1).replace(",", "")), unit="INR", source_page=page, source_text=match.group(), confidence=.75, requires_verification=True))
         simple_requirements = (
             (r"\bgstin\b|\bgst registration\b", RequirementType.GST, "tax.gstin", Operator.EXISTS, True),
@@ -128,11 +135,23 @@ def extract_tender(file_path: Union[str, Path], gateway: ModelGateway = None) ->
         for pattern, kind, field, operator, expected in simple_requirements:
             marker = re.search(pattern, text, re.I)
             if marker:
+                clause = _find_clause_for_pos(text, marker.start())
                 requirements.append(TenderRequirementDraft(clause=clause, requirement_type=kind, field=field, operator=operator, expected_value=expected, source_page=page, source_text=_sentence(text, marker.start(), marker.end()), confidence=.82, requires_verification=True))
-        experience = re.search(r"(?:minimum\s+)?experience[^.\n]{0,100}?(\d+)\s*(?:years?|yrs?)", text, re.I)
-        if experience:
-            requirements.append(TenderRequirementDraft(clause=clause, requirement_type=RequirementType.EXPERIENCE, field="experience.years", operator=Operator.GTE, expected_value=int(experience.group(1)), unit="years", source_page=page, source_text=_sentence(text, experience.start(), experience.end()), confidence=.78, requires_verification=True))
-    return requirements
+        exp_match = re.search(r"(?:(?:minimum\s+)?experience[^.\n]{0,100}?(\d+)\s*(?:years?|yrs?)|(?:minimum\s+of\s+)?(\d+)\s*(?:years?|yrs?)[^.\n]{0,100}?experience)", text, re.I)
+        if exp_match:
+            years = int(exp_match.group(1) or exp_match.group(2))
+            clause = _find_clause_for_pos(text, exp_match.start())
+            requirements.append(TenderRequirementDraft(clause=clause, requirement_type=RequirementType.EXPERIENCE, field="experience.years", operator=Operator.GTE, expected_value=years, unit="years", source_page=page, source_text=_sentence(text, exp_match.start(), exp_match.end()), confidence=.78, requires_verification=True))
+
+    # Deduplicate keeping highest-precedence/earliest occurrence per requirement type & field
+    seen: set[tuple[RequirementType, str]] = set()
+    unique: list[TenderRequirementDraft] = []
+    for r in requirements:
+        key = (r.requirement_type, r.field)
+        if key not in seen:
+            seen.add(key)
+            unique.append(r)
+    return unique
 
 def _sentence(text: str, start: int, end: int) -> str:
     """Small source excerpt for audit evidence; avoids returning a whole document page."""

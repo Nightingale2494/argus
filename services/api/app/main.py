@@ -9,6 +9,7 @@ from sqlalchemy import text
 from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.bidders import router as bidders_router
+from app.api.v1.demo import router as demo_router
 from app.api.v1.documents import router as documents_router
 from app.api.v1.evaluations import router as evaluations_router
 from app.api.v1.jobs import router as jobs_router
@@ -101,6 +102,7 @@ app.include_router(jobs_router, prefix="/api/v1")
 app.include_router(rag_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")
 app.include_router(providers_router, prefix="/api/v1")
+app.include_router(demo_router, prefix="/api/v1")
 
 
 @app.get("/health")

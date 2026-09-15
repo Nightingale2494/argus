@@ -8,7 +8,6 @@ import {
   Scale, UserCheck, ArrowUpRight
 } from "lucide-react";
 import { api } from "@/services/api";
-import { demoStore } from "@/services/demo-store";
 import { AuditEventRead } from "@/services/types";
 import { SessionRequired } from "@/components/ui/SessionRequired";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,13 +29,7 @@ export default function AuditPage() {
     setLoading(true);
     setError(null);
 
-    if (isDemoPreview) {
-      setEvents(demoStore.getAuditEvents());
-      setLoading(false);
-      return;
-    }
-
-    if (!isAuthenticated) {
+    if (!isAuthenticated && !isDemoPreview) {
       setLoading(false);
       return;
     }

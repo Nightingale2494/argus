@@ -96,8 +96,8 @@ class GSTVerificationAdapter(BaseVerificationAdapter):
             return GSTLiveProvider(VerificationSource.GST_AUTHORIZED_API)
         elif mode == VerificationMode.PORTAL_CACHED:
             return PortalCachedProvider("gst", VerificationSource.GST_PORTAL_VERIFIED_CACHE)
-        elif mode == VerificationMode.DEMO:
-            return DemoProvider("gst", VerificationSource.GST_DEMO_DATA)
+        elif mode in (VerificationMode.DEMO, VerificationMode.DEMO_SYNTHETIC):
+            return DemoProvider("gst", VerificationSource.GST_DEMO_DATA, mode=mode)
         else:
             return UnsupportedModeProvider("gst", mode)
 
@@ -114,8 +114,8 @@ class UdyamVerificationAdapter(BaseVerificationAdapter):
             return UdyamLiveProvider(VerificationSource.UDYAM_AUTHORIZED_API)
         elif mode == VerificationMode.PORTAL_CACHED:
             return PortalCachedProvider("udyam", VerificationSource.UDYAM_PORTAL_VERIFIED_CACHE)
-        elif mode == VerificationMode.DEMO:
-            return DemoProvider("udyam", VerificationSource.UDYAM_DEMO_DATA)
+        elif mode in (VerificationMode.DEMO, VerificationMode.DEMO_SYNTHETIC):
+            return DemoProvider("udyam", VerificationSource.UDYAM_DEMO_DATA, mode=mode)
         else:
             return UnsupportedModeProvider("udyam", mode)
 
@@ -132,8 +132,8 @@ class MCAVerificationAdapter(BaseVerificationAdapter):
             return MCALiveProvider(VerificationSource.MCA_AUTHORIZED_API)
         elif mode == VerificationMode.PORTAL_CACHED:
             return PortalCachedProvider("mca", VerificationSource.MCA_PUBLIC_MASTER_DATA_CACHE)
-        elif mode == VerificationMode.DEMO:
-            return DemoProvider("mca", VerificationSource.MCA_DEMO_DATA)
+        elif mode in (VerificationMode.DEMO, VerificationMode.DEMO_SYNTHETIC):
+            return DemoProvider("mca", VerificationSource.MCA_DEMO_DATA, mode=mode)
         else:
             return UnsupportedModeProvider("mca", mode)
 
@@ -152,8 +152,8 @@ class EPFOVerificationAdapter(BaseVerificationAdapter):
             return PortalCachedProvider("epfo", VerificationSource.EPFO_PORTAL_VERIFIED_CACHE)
         elif mode == VerificationMode.DOCUMENT:
             return DocumentVerificationProvider("epfo", VerificationSource.EPFO_DOCUMENT_VERIFICATION)
-        elif mode == VerificationMode.DEMO:
-            return DemoProvider("epfo", VerificationSource.EPFO_DEMO_DATA)
+        elif mode in (VerificationMode.DEMO, VerificationMode.CONFIGURED_UNVERIFIED):
+            return DemoProvider("epfo", VerificationSource.EPFO_DEMO_DATA, mode=mode)
         else:
             return UnsupportedModeProvider("epfo", mode)
 
@@ -172,8 +172,8 @@ class ESICVerificationAdapter(BaseVerificationAdapter):
             return PortalCachedProvider("esic", VerificationSource.ESIC_PORTAL_VERIFIED_CACHE)
         elif mode == VerificationMode.DOCUMENT:
             return DocumentVerificationProvider("esic", VerificationSource.ESIC_DOCUMENT_VERIFICATION)
-        elif mode == VerificationMode.DEMO:
-            return DemoProvider("esic", VerificationSource.ESIC_DEMO_DATA)
+        elif mode in (VerificationMode.DEMO, VerificationMode.CONFIGURED_UNVERIFIED):
+            return DemoProvider("esic", VerificationSource.ESIC_DEMO_DATA, mode=mode)
         else:
             return UnsupportedModeProvider("esic", mode)
 
@@ -190,7 +190,7 @@ class BlacklistVerificationAdapter(BaseVerificationAdapter):
             return BlacklistLiveProvider(VerificationSource.BLACKLIST_AUTHORIZED_SOURCE)
         elif mode == VerificationMode.PORTAL_CACHED:
             return PortalCachedProvider("blacklist", VerificationSource.BLACKLIST_PORTAL_VERIFIED_CACHE)
-        elif mode == VerificationMode.DEMO:
-            return DemoProvider("blacklist", VerificationSource.BLACKLIST_DEMO_DATA)
+        elif mode in (VerificationMode.DEMO, VerificationMode.DEMO_SYNTHETIC):
+            return DemoProvider("blacklist", VerificationSource.BLACKLIST_DEMO_DATA, mode=mode)
         else:
             return UnsupportedModeProvider("blacklist", mode)

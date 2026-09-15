@@ -51,8 +51,24 @@ def parse_document(file_path: Union[str, Path]) -> list[tuple[int, str]]:
             pages = [(i + 1, page.extract_text() or "") for i, page in enumerate(PdfReader(str(path)).pages)]
             if any(text.strip() for _, text in pages): return pages
             return _ocr_pdf(path)
-        except ImportError as exc:
-            raise DocumentParseError("PDF parsing requires optional dependency pypdf") from exc
+        except ImportError:
+            try:
+                import fitz
+                doc = fitz.open(str(path))
+                pages = [(i + 1, page.get_text() or "") for i, page in enumerate(doc)]
+                if any(text.strip() for _, text in pages): return pages
+                return _ocr_pdf(path)
+            except ImportError as exc:
+                raise DocumentParseError("PDF parsing requires optional dependency pypdf or pymupdf") from exc
+        except Exception as exc:
+            try:
+                import fitz
+                doc = fitz.open(str(path))
+                pages = [(i + 1, page.get_text() or "") for i, page in enumerate(doc)]
+                if any(text.strip() for _, text in pages): return pages
+            except Exception:
+                pass
+            raise DocumentParseError(f"PDF parsing error: {exc}") from exc
     raise DocumentParseError(f"unsupported document type: {path.suffix}")
 
 

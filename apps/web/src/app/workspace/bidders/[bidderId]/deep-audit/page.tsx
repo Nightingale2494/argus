@@ -4,7 +4,7 @@ import React from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, FileText, FileSearch, ShieldCheck } from "lucide-react";
-import { demoStore } from "@/services/demo-store";
+import { api } from "@/services/api";
 import { useAuth } from "@/hooks/useAuth";
 import { DeepAuditInvestigationWorkspace } from "@/components/ui/DeepAuditInvestigationWorkspace";
 import { SessionRequired } from "@/components/ui/SessionRequired";
@@ -13,9 +13,15 @@ export default function DeepAuditPage() {
   const params = useParams();
   const bidderId = params?.bidderId as string;
   const { isAuthenticated, isDemoPreview } = useAuth();
+  const [bidder, setBidder] = React.useState<{ bidder_name?: string; tender_id?: string } | null>(null);
 
-  const storedDemoBidder = bidderId ? demoStore.getBidder(bidderId) : null;
-  const isDemo = isDemoPreview || Boolean(storedDemoBidder);
+  React.useEffect(() => {
+    if (bidderId) {
+      api.getBidder(bidderId).then(setBidder).catch(() => {});
+    }
+  }, [bidderId]);
+
+  const isDemo = isDemoPreview;
 
   const querySuffix = isDemo ? "?mode=demo" : "";
 
@@ -45,13 +51,13 @@ export default function DeepAuditPage() {
               Deep Audit Investigation
             </h1>
             <p className="text-sm text-zinc-400 mt-1">
-              Autonomous advisory investigation layer uncovering cross-document conflicts, missing evidence, and statutory gaps.
+              Autonomous LangGraph investigation: cross-document reconciliation, MCA director conflict scans, and forensic risk signals.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Bidder Sub-Navigation Tabs (Uniform 4-tab bar) */}
+      {/* Bidder Sub-Navigation Tabs */}
       <div className="border-b border-zinc-800 flex gap-4 text-xs font-mono">
         <Link
           href={`/workspace/bidders/${bidderId}/matrix${querySuffix}`}
@@ -69,21 +75,21 @@ export default function DeepAuditPage() {
           href={`/workspace/bidders/${bidderId}/review${querySuffix}`}
           className="pb-2.5 font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5"
         >
-          <ShieldCheck className="w-3.5 h-3.5" /> Human Officer Review
+          Human Officer Review
         </Link>
         <Link
           href={`/workspace/bidders/${bidderId}/report${querySuffix}`}
           className="pb-2.5 font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5"
         >
-          Audit Report
+          <ShieldCheck className="w-3.5 h-3.5" /> Audit Report
         </Link>
       </div>
 
       {/* Main Autonomous Investigation Workspace */}
       <DeepAuditInvestigationWorkspace
         bidderId={bidderId}
-        bidderName={storedDemoBidder?.bidder_name}
-        tenderId={storedDemoBidder?.tender_id}
+        bidderName={bidder?.bidder_name}
+        tenderId={bidder?.tender_id}
         isDemo={isDemo}
       />
     </div>

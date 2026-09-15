@@ -8,7 +8,6 @@ import {
   AlertTriangle, AlertCircle, FileSearch, FileText
 } from "lucide-react";
 import { api } from "@/services/api";
-import { demoStore } from "@/services/demo-store";
 import { BidderRead, ComplianceMatrixRow, HumanDecisionCreate, HumanDecisionRead } from "@/services/types";
 import { SessionRequired } from "@/components/ui/SessionRequired";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,8 +16,7 @@ export default function HumanReviewPage() {
   const params = useParams();
   const bidderId = params?.bidderId as string;
   const { isAuthenticated, isDemoPreview, role } = useAuth();
-  const storedDemoBidder = bidderId ? demoStore.getBidder(bidderId) : null;
-  const isDemo = isDemoPreview || Boolean(storedDemoBidder);
+  const isDemo = isDemoPreview;
   const canSubmitDecision = isDemo || role === 'ADMIN' || role === 'PROCUREMENT_OFFICER';
 
   const [bidder, setBidder] = useState<BidderRead | null>(null);
@@ -39,38 +37,7 @@ export default function HumanReviewPage() {
     setLoading(true);
     setError(null);
 
-    if (isDemo) {
-      const match = demoStore.getBidder(bidderId);
-      if (!match) {
-        setBidder(null);
-        setError("Bidder Not Found");
-        setLoading(false);
-        return;
-      }
-      setBidder(match);
-      const demoMatrix = demoStore.getComplianceMatrix(bidderId);
-      setMatrix(demoMatrix?.rows || []);
-
-      const savedDecision = demoStore.getDemoState().humanDecisions[bidderId];
-      if (savedDecision) {
-        setExistingDecision({
-          id: `dec_demo_${bidderId}`,
-          bidder_id: bidderId,
-          officer_id: 'usr_proc_officer_01',
-          officer_name: 'Rajesh Kumar (Senior Procurement Officer)',
-          status: savedDecision as "QUALIFIED" | "DISQUALIFIED",
-          reason_code: savedDecision === 'QUALIFIED' ? 'MANUAL_APPROVAL_COMPLIANT' : 'STATUTORY_NON_COMPLIANCE',
-          remarks: savedDecision === 'QUALIFIED' ? 'All tender criteria satisfied and statutory facts validated.' : 'Eligibility criteria not satisfied.',
-          decided_at: new Date().toISOString(),
-        });
-      } else {
-        setExistingDecision(null);
-      }
-      setLoading(false);
-      return;
-    }
-
-    if (!isAuthenticated) {
+    if (!isAuthenticated && !isDemoPreview) {
       setLoading(false);
       return;
     }
@@ -91,7 +58,7 @@ export default function HumanReviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [bidderId, isDemo, isAuthenticated]);
+  }, [bidderId, isDemoPreview, isAuthenticated]);
 
   useEffect(() => {
     loadData();
@@ -103,24 +70,6 @@ export default function HumanReviewPage() {
     setSubmitting(true);
     setSubmitError(null);
     setSubmitSuccess(false);
-
-    if (isDemo) {
-      demoStore.recordHumanDecision(bidderId, status);
-      setExistingDecision({
-        id: `dec_demo_${Date.now()}`,
-        bidder_id: bidderId,
-        officer_id: 'usr_proc_officer_01',
-        officer_name: 'Rajesh Kumar (Senior Procurement Officer)',
-        status,
-        reason_code: reasonCode,
-        remarks: remarks.trim() || undefined,
-        decided_at: new Date().toISOString(),
-      });
-      setSubmitSuccess(true);
-      await loadData();
-      setSubmitting(false);
-      return;
-    }
 
     try {
       const payload: HumanDecisionCreate = {

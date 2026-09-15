@@ -69,3 +69,4 @@ export type IntegrationsHealthResponse = Schemas['IntegrationsHealthResponse'];
 export type IntegrationServiceStatus = Schemas['IntegrationServiceStatus'];
 export type RAGQueryRequest = Schemas['RAGQueryRequest'];
 export type RAGQueryResponse = Schemas['RAGQueryResponse'];
+export type DemoStatusRead = Schemas['DemoStatusRead'];

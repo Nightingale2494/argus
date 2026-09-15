@@ -13,10 +13,6 @@ import {
   Activity,
 } from 'lucide-react';
 import { apiClient } from '@/services/api';
-import { demoStore } from '@/services/demo-store';
-import {
-  MOCK_PROVIDERS,
-} from '@/services/mock-data';
 import type { ProviderHealthRead, TenderCreate, TenderRead } from '@/types/api';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -30,13 +26,7 @@ export default function WorkspaceDashboard() {
   const { isAuthenticated, isDemoPreview, enableDemoPreview } = useAuth();
 
   const [tenders, setTenders] = useState<TenderRead[]>([]);
-  const [demoStats, setDemoStats] = useState({
-    activeTenders: 0,
-    qualifiedBidders: 0,
-    disqualifiedBidders: 0,
-    pendingReviewBidders: 0,
-  });
-  const [liveStats, setLiveStats] = useState({
+  const [stats, setStats] = useState({
     qualifiedBidders: 0,
     disqualifiedBidders: 0,
     pendingReviewBidders: 0,
@@ -53,22 +43,23 @@ export default function WorkspaceDashboard() {
       setLoading(true);
       setError(null);
 
+      if (!isAuthenticated && !isDemoPreview) {
+        setLoading(false);
+        return;
+      }
+
       if (isDemoPreview) {
-        const demoTenders = demoStore.getTenders();
-        const stats = demoStore.getDashboardStats();
-        setTenders(demoTenders);
-        setDemoStats(stats);
-        setProviders(MOCK_PROVIDERS);
-        setLoading(false);
-        return;
+        try {
+          const demoStatus = await apiClient.getDemoStatus();
+          if (!demoStatus.seeded) {
+            await apiClient.seedDemo();
+          }
+        } catch (seedErr) {
+          console.warn('Demo status/seed check error:', seedErr);
+        }
       }
 
-      if (!isAuthenticated) {
-        setLoading(false);
-        return;
-      }
-
-      // Live mode
+      // Live backend fetch (in demo mode, backend serves seeded demo entities)
       const tenderList = await apiClient.getTenders();
       let providerList: ProviderHealthRead[] = [];
       try {
@@ -100,7 +91,7 @@ export default function WorkspaceDashboard() {
             }
           }
         }
-        setLiveStats({
+        setStats({
           qualifiedBidders: qualified,
           disqualifiedBidders: disqualified,
           pendingReviewBidders: pending,
@@ -123,14 +114,6 @@ export default function WorkspaceDashboard() {
     try {
       setIsCreating(true);
 
-      if (isDemoPreview) {
-        demoStore.createTender(data, rfpFile);
-        await loadDashboardData();
-        setCreateModalOpen(false);
-        return;
-      }
-
-      // Live API call: do NOT fake success on failure
       const newTender = await apiClient.createTender(data);
       if (rfpFile) {
         await apiClient.uploadTenderDocument(newTender.id, rfpFile, 'TENDER');
@@ -145,6 +128,7 @@ export default function WorkspaceDashboard() {
       setIsCreating(false);
     }
   };
+
 
   if (!isAuthenticated && !isDemoPreview) {
     return (
@@ -180,20 +164,16 @@ export default function WorkspaceDashboard() {
     );
   }
 
-  const qualifiedCount = isDemoPreview ? demoStats.qualifiedBidders : liveStats.qualifiedBidders;
-  const disqualifiedCount = isDemoPreview ? demoStats.disqualifiedBidders : liveStats.disqualifiedBidders;
-  const pendingCount = isDemoPreview ? demoStats.pendingReviewBidders : liveStats.pendingReviewBidders;
+  const qualifiedCount = stats.qualifiedBidders;
+  const disqualifiedCount = stats.disqualifiedBidders;
+  const pendingCount = stats.pendingReviewBidders;
 
   const isInactiveTender = (status?: string) => {
     const s = (status || '').toUpperCase();
     return ['FAILED', 'CANCELLED', 'ARCHIVED'].includes(s);
   };
-  const activeTendersCount = isDemoPreview
-    ? (demoStats.activeTenders || tenders.length)
-    : tenders.filter((t) => !isInactiveTender(t.status)).length;
-  const failedTendersCount = isDemoPreview
-    ? 0
-    : tenders.filter((t) => (t.status || '').toUpperCase() === 'FAILED').length;
+  const activeTendersCount = tenders.filter((t) => !isInactiveTender(t.status)).length;
+  const failedTendersCount = tenders.filter((t) => (t.status || '').toUpperCase() === 'FAILED').length;
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12">

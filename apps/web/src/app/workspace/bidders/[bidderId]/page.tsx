@@ -8,13 +8,21 @@ import {
   Clock, ArrowLeft, RefreshCw, Sparkles, FileText, CheckSquare, Upload, AlertCircle, FileSearch
 } from "lucide-react";
 import { api } from "@/services/api";
-import { demoStore, DemoBidderDocument } from "@/services/demo-store";
 import { BidderRead, VerificationResultRead, ComplianceMatrixRow } from "@/services/types";
 import { DocumentRead } from "@/types/api";
 import { JobProgressDrawer } from "@/components/ui/JobProgressDrawer";
 import { SessionRequired } from "@/components/ui/SessionRequired";
 import { MismatchDetailModal, MismatchDetailItem } from "@/components/ui/MismatchDetailModal";
 import { useAuth } from "@/hooks/useAuth";
+
+interface BidderDocumentItem extends DocumentRead {
+  status?: string;
+  facts_count?: number;
+  extracted_facts?: unknown[];
+  mismatches?: MismatchDetailItem[];
+  is_scanned?: boolean;
+  ocr_used?: boolean;
+}
 
 export default function BidderDetailPage() {
   const params = useParams();
@@ -24,14 +32,12 @@ export default function BidderDetailPage() {
   const [bidder, setBidder] = useState<BidderRead | null>(null);
   const [verifications, setVerifications] = useState<VerificationResultRead[]>([]);
   const [matrix, setMatrix] = useState<ComplianceMatrixRow[]>([]);
-  const [documents, setDocuments] = useState<DemoBidderDocument[]>([]);
+  const [documents, setDocuments] = useState<BidderDocumentItem[]>([]);
   const [complianceStale, setComplianceStale] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const storedDemoBidder = bidderId ? demoStore.getBidder(bidderId) : null;
-  const isDemo = isDemoPreview || Boolean(storedDemoBidder);
-  const querySuffix = isDemo ? '?mode=demo' : '';
+  const querySuffix = isDemoPreview ? '?mode=demo' : '';
 
   // Async Jobs
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -47,41 +53,30 @@ export default function BidderDetailPage() {
 
   // Mismatch & Risk Explainability Modal State
   const [mismatchModalOpen, setMismatchModalOpen] = useState(false);
-  const [selectedDocForMismatch, setSelectedDocForMismatch] = useState<DemoBidderDocument | null>(null);
+  const [selectedDocForMismatch, setSelectedDocForMismatch] = useState<BidderDocumentItem | null>(null);
 
   const loadBidderData = useCallback(async () => {
     if (!bidderId) return;
     setLoading(true);
     setError(null);
 
-    if (isDemo) {
-      const match = demoStore.getBidder(bidderId);
-      if (!match) {
-        setBidder(null);
-        setError("Bidder Not Found");
-        setLoading(false);
-        return;
-      }
-      setBidder(match);
-      const demoVerifications = demoStore.getDemoState().verifications[bidderId] || [];
-      const demoMatrix = demoStore.getComplianceMatrix(bidderId);
-      const demoDocs = demoStore.getBidderDocuments(bidderId);
-      const isStale = demoStore.isComplianceStale(bidderId);
-
-      setVerifications(demoVerifications);
-      setMatrix(demoMatrix?.rows || []);
-      setDocuments(demoDocs);
-      setComplianceStale(isStale);
-      setLoading(false);
-      return;
-    }
-
-    if (!isAuthenticated) {
+    if (!isAuthenticated && !isDemoPreview) {
       setLoading(false);
       return;
     }
 
     try {
+      if (isDemoPreview) {
+        try {
+          const demoStatus = await api.getDemoStatus();
+          if (!demoStatus.seeded) {
+            await api.seedDemo();
+          }
+        } catch (seedErr) {
+          console.warn('Demo status/seed check error:', seedErr);
+        }
+      }
+
       const [bData, vData, mData, dData, reportData] = await Promise.all([
         api.getBidder(bidderId),
         api.getVerificationResults(bidderId),
@@ -94,13 +89,13 @@ export default function BidderDetailPage() {
       setMatrix(mData);
 
       // Correlate authentic documents with direct facts and report evidence
-      const authenticDocs: DemoBidderDocument[] = (dData || []).map((doc: DocumentRead) => {
+      const authenticDocs: BidderDocumentItem[] = (dData || []).map((doc: DocumentRead) => {
         const directFacts = doc.facts || [];
         const reportEvidence = (reportData?.evidence || []).filter(
           (ev: { document_id?: string | null }) => ev.document_id === doc.id
         );
         const totalFactsCount = directFacts.length > 0 ? directFacts.length : reportEvidence.length;
-        const docStatus: DemoBidderDocument['status'] = totalFactsCount > 0 ? 'PROCESSED' : 'PENDING';
+        const docStatus = totalFactsCount > 0 ? 'PROCESSED' : 'PENDING';
 
         return {
           ...doc,
@@ -118,7 +113,7 @@ export default function BidderDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [bidderId, isDemo, isAuthenticated]);
+  }, [bidderId, isDemoPreview, isAuthenticated]);
 
   useEffect(() => {
     loadBidderData();
@@ -136,19 +131,6 @@ export default function BidderDetailPage() {
     if (!bidderId) return;
     setTriggeringVerify(true);
     setError(null);
-
-    if (isDemo) {
-      try {
-        const results = await demoStore.runStatutoryChecks(bidderId);
-        setVerifications(results);
-        await loadBidderData();
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Failed to trigger statutory verification.");
-      } finally {
-        setTriggeringVerify(false);
-      }
-      return;
-    }
 
     try {
       const res = await api.runVerification(bidderId);
@@ -168,20 +150,6 @@ export default function BidderDetailPage() {
     if (!bidderId) return;
     setTriggeringCompliance(true);
     setError(null);
-
-    if (isDemo) {
-      try {
-        const matrixResult = await demoStore.evaluateCompliance(bidderId);
-        setMatrix(matrixResult.rows || []);
-        setComplianceStale(false);
-        await loadBidderData();
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Failed to trigger compliance evaluation.");
-      } finally {
-        setTriggeringCompliance(false);
-      }
-      return;
-    }
 
     try {
       const res = await api.runCompliance(bidderId);
@@ -206,33 +174,8 @@ export default function BidderDetailPage() {
     setUploadError(null);
     setUploadSuccessMessage(null);
 
-    if (isDemo) {
-      try {
-        setUploadStage('PROCESSING');
-        const result = await demoStore.uploadBidderDocument(bidderId, file);
-        setUploadStage('PROCESSED');
-        setHasUploadedOnce(true);
-
-        let msg = `Document processed successfully. ${result.factsCount} bidder facts extracted.`;
-        if (result.enrichedCount > 0) {
-          msg += ` ${result.enrichedCount} bidder identifier updated from document evidence.`;
-        }
-        setUploadSuccessMessage(msg);
-        await loadBidderData();
-      } catch (err: unknown) {
-        setUploadError(err instanceof Error ? err.message : 'Failed to process document.');
-        setUploadStage('IDLE');
-      } finally {
-        setUploadingDoc(false);
-        if (e.target) e.target.value = '';
-        setTimeout(() => {
-          setUploadStage('IDLE');
-        }, 3000);
-      }
-      return;
-    }
-
     try {
+      setUploadStage('PROCESSING');
       await api.uploadBidderDocument(bidderId, file, 'FINANCIAL_STATEMENT');
       setUploadStage('PROCESSED');
       setHasUploadedOnce(true);
@@ -279,7 +222,7 @@ export default function BidderDetailPage() {
     }
   };
 
-  if (!isAuthenticated && !isDemo) {
+  if (!isAuthenticated && !isDemoPreview) {
     return (
       <SessionRequired
         title="Session Required"

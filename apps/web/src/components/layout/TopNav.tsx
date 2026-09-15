@@ -1,25 +1,34 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Activity, LogOut, AlertCircle, Home, Sparkles, Terminal, RefreshCw, RotateCcw } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { demoStore } from '@/services/demo-store';
+import { apiClient } from '@/services/api';
 
 export const TopNav: React.FC = () => {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const { principal, isAuthenticated, isDemoPreview, enableDemoPreview, setToken, loginDevOfficer, logout, error } =
     useAuth();
 
-  const handleResetDemoData = () => {
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleResetDemoData = async () => {
     if (typeof window !== 'undefined') {
       const confirmed = window.confirm(
         'Reset all synthetic demo data back to canonical default 3 scenarios? Custom tenders, bidders, and audit logs will be cleared.'
       );
       if (confirmed) {
-        demoStore.resetDemoState();
-        window.location.reload();
+        try {
+          await apiClient.resetDemo();
+          window.location.reload();
+        } catch (err: unknown) {
+          alert(err instanceof Error ? err.message : 'Failed to reset demo data on backend.');
+        }
       }
     }
   };
@@ -77,9 +86,8 @@ export const TopNav: React.FC = () => {
 
   return (
     <header className="h-16 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md px-6 flex items-center justify-between select-none shrink-0 sticky top-0 z-30">
-      {/* State Badge: Live vs Synthetic Demo Data vs Session Required */}
       <div className="flex items-center gap-3">
-        {isDemoPreview ? (
+        {!mounted ? null : isDemoPreview ? (
           <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-amber-950/60 border border-amber-800/80 text-amber-300 text-xs font-mono">
             <span className="w-2 h-2 rounded-full bg-amber-400" />
             <span className="font-semibold tracking-wide">SYNTHETIC DEMO DATA</span>

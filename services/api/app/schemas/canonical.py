@@ -39,6 +39,8 @@ class AuthenticatedPrincipal(BaseModel):
     name: str | None = None
     role: UserRole
     email: str | None = None
+    is_demo_operator: bool = False
+    evaluation_mode: bool = False
 
 
 
@@ -95,6 +97,8 @@ class VerificationMode(str, Enum):
     PORTAL_CACHED = "PORTAL_CACHED"
     DEMO = "DEMO"
     DOCUMENT = "DOCUMENT"
+    DEMO_SYNTHETIC = "DEMO_SYNTHETIC"
+    CONFIGURED_UNVERIFIED = "CONFIGURED_UNVERIFIED"
 
 
 class AuthMode(str, Enum):
@@ -358,10 +362,80 @@ class VerificationResultRead(BaseModel):
     status: VerificationStatus
     source: VerificationSource
     mode: VerificationMode = VerificationMode.LIVE
+    provider_mode: str | None = None
+    is_synthetic: bool = False
     checked_at: datetime
     verification_reference: str | None = None
     error_message: str | None = None
     location_metadata: dict[str, Any] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_provider_metadata(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("provider_mode"):
+                mode_val = data.get("mode")
+                mode_str = str(mode_val.value if hasattr(mode_val, "value") else mode_val)
+                src = str(data.get("source", ""))
+                if mode_str == "DEMO_SYNTHETIC":
+                    data["provider_mode"] = "DEMO_SYNTHETIC"
+                    data["is_synthetic"] = True
+                elif mode_str == "CONFIGURED_UNVERIFIED":
+                    data["provider_mode"] = "CONFIGURED_UNVERIFIED"
+                    data["is_synthetic"] = False
+                elif mode_str == "DEMO":
+                    if "EPFO" in src or "ESIC" in src:
+                        data["provider_mode"] = "CONFIGURED_UNVERIFIED"
+                        data["is_synthetic"] = False
+                    else:
+                        data["provider_mode"] = "DEMO_SYNTHETIC"
+                        data["is_synthetic"] = True
+                else:
+                    data["provider_mode"] = mode_str
+            return data
+
+        mode_val = getattr(data, "mode", None)
+        mode_str = str(mode_val.value if hasattr(mode_val, "value") else mode_val)
+        source_val = getattr(data, "source", None)
+        source_str = str(source_val.value if hasattr(source_val, "value") else source_val)
+
+        prov_mode = getattr(data, "provider_mode", None)
+        is_synth = getattr(data, "is_synthetic", None)
+        if not prov_mode:
+            if mode_str == "DEMO_SYNTHETIC":
+                prov_mode = "DEMO_SYNTHETIC"
+                is_synth = True
+            elif mode_str == "CONFIGURED_UNVERIFIED":
+                prov_mode = "CONFIGURED_UNVERIFIED"
+                is_synth = False
+            elif mode_str == "DEMO":
+                if "EPFO" in source_str or "ESIC" in source_str:
+                    prov_mode = "CONFIGURED_UNVERIFIED"
+                    is_synth = False
+                else:
+                    prov_mode = "DEMO_SYNTHETIC"
+                    is_synth = True
+            else:
+                prov_mode = mode_str
+                is_synth = False
+
+        return {
+            "id": getattr(data, "id"),
+            "bidder_id": getattr(data, "bidder_id"),
+            "run_id": getattr(data, "run_id", None),
+            "field": getattr(data, "field"),
+            "claimed_value": getattr(data, "claimed_value", None),
+            "verified_value": getattr(data, "verified_value", None),
+            "status": getattr(data, "status"),
+            "source": getattr(data, "source"),
+            "mode": getattr(data, "mode", VerificationMode.LIVE),
+            "provider_mode": prov_mode,
+            "is_synthetic": bool(is_synth),
+            "checked_at": getattr(data, "checked_at"),
+            "verification_reference": getattr(data, "verification_reference", None),
+            "error_message": getattr(data, "error_message", None),
+            "location_metadata": getattr(data, "location_metadata", None),
+        }
 
 
 class EvidenceCreate(BaseModel):
@@ -967,4 +1041,19 @@ class DeepAuditSynthesis(BaseModel):
     langgraph_trace: list[str] = Field(default_factory=list)
     langgraph_interrupted: bool = False
     langgraph_reasons: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# DEMO MANAGEMENT SCHEMAS
+# ---------------------------------------------------------------------------
+
+class DemoStatusRead(BaseModel):
+    """Status report for the deterministic synthetic demo scenario."""
+    enabled: bool
+    seeded: bool
+    fixture_version: str | None = None
+    expected_fixture_version: str
+    healthy: bool
+    message: str
+
 

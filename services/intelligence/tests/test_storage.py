@@ -54,3 +54,47 @@ def test_nonexistent_document_rejected(tmp_path):
     with pytest.raises(DocumentResolutionError, match="document not found"):
         with resolved_document(missing):
             pass
+
+
+def test_storage_security_regressions_and_traversal_protection(tmp_path, monkeypatch):
+    """Verifies strict path containment: ../ traversal rejected, absolute unauthorized path rejected,
+    allowed demo fixture path accepted only where intended, and authorized stored document accepted."""
+    fixtures_root = tmp_path / "fixtures"
+    fixtures_root.mkdir()
+    uploads_root = tmp_path / "uploads"
+    uploads_root.mkdir()
+    unauthorized_root = tmp_path / "system_secrets"
+    unauthorized_root.mkdir()
+
+    fixture_pdf = fixtures_root / "tender.pdf"
+    fixture_pdf.write_bytes(b"%PDF-fixture-content")
+
+    upload_pdf = uploads_root / "doc.pdf"
+    upload_pdf.write_bytes(b"%PDF-uploaded-content")
+
+    secret_file = unauthorized_root / "master.key"
+    secret_file.write_text("SUPER_SECRET_KEY")
+
+    # Configure allowed roots strictly to fixtures and uploads
+    allowed_roots_env = f"{fixtures_root};{uploads_root}"
+    monkeypatch.setenv("ARGUS_ALLOWED_STORAGE_ROOTS", allowed_roots_env)
+
+    # 1. ../ traversal -> rejected
+    traversal_path = fixtures_root / ".." / "system_secrets" / "master.key"
+    with pytest.raises(DocumentResolutionError, match="escapes allowed storage roots"):
+        with resolved_document(traversal_path):
+            pass
+
+    # 2. absolute unauthorized path -> rejected
+    with pytest.raises(DocumentResolutionError, match="escapes allowed storage roots"):
+        with resolved_document(secret_file):
+            pass
+
+    # 3. allowed demo fixture path -> accepted only where intended
+    with resolved_document(fixture_pdf) as path:
+        assert path.read_bytes() == b"%PDF-fixture-content"
+
+    # 4. authorized stored document -> accepted
+    with resolved_document(upload_pdf) as path:
+        assert path.read_bytes() == b"%PDF-uploaded-content"
+

@@ -19,7 +19,48 @@ class RAGServiceAdapter:
 
         url = settings.ARGUS_INTELLIGENCE_RAG_URL
 
+        # Helper to retrieve from backend canonical demo fixtures
+        def _match_demo_chunks() -> list[EvidenceRead]:
+            from app.core.demo_fixtures import DEMO_RAG_CHUNKS
+            q_lower = request.query.lower()
+            matches: list[EvidenceRead] = []
+            keywords = {
+                "turnover": ["turnover", "annual turnover", "revenue"],
+                "experience": ["experience", "operating experience", "track record", "similar contract"],
+                "msme": ["msme", "mse", "udyam", "relaxation", "exemption"],
+                "emd": ["emd", "earnest money", "bid security"],
+                "warranty": ["warranty", "guarantee", "amc"],
+                "jv": ["joint venture", "jv", "consortium"],
+            }
+            matched_keys = [k for k, terms in keywords.items() if any(t in q_lower for t in terms)]
+            if not matched_keys:
+                return []
+            for chunk in DEMO_RAG_CHUNKS:
+                if request.tender_id and chunk.get("tender_id") and chunk["tender_id"] != request.tender_id and "DEMO" not in request.tender_id.upper():
+                    continue
+                c_text = (chunk["snippet"] + " " + chunk.get("clause", "")).lower()
+                for mk in matched_keys:
+                    if any(term in c_text for term in keywords[mk]):
+                        matches.append(EvidenceRead.model_validate(chunk))
+                        break
+            return matches
+
         if not url or not url.strip():
+            is_demo_query = bool(
+                request.tender_id
+                and any(
+                    k in request.tender_id.lower()
+                    for k in ("demo", "gem_2026", "tender_gem")
+                )
+            )
+            if is_demo_query:
+                demo_matches = _match_demo_chunks()
+                if demo_matches:
+                    return RAGQueryResponse(
+                        query=request.query,
+                        results=demo_matches,
+                        retrieved_at=now,
+                    )
             return RAGQueryResponse(
                 query=request.query,
                 results=[],

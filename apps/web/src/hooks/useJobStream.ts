@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient, getApiBaseUrl, getAuthToken } from '@/services/api';
-import { demoStore } from '@/services/demo-store';
 import type { JobEventRead, JobRead, JobStage, JobStatus } from '@/types/api';
 
 /**
@@ -76,36 +75,6 @@ export function useJobStream({
     setIsStreaming(true);
     setError(null);
 
-    // DEMO MODE SAFEGUARD: Check if this is a demo job from demoStore
-    const demoJob = demoStore.getJob(jobId);
-    if (demoJob || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('argus_workspace_mode') === 'demo')) {
-      let isMounted = true;
-      const demoTicker = setInterval(() => {
-        if (!isMounted) return;
-        const currentDemoJob = demoStore.getJob(jobId);
-        const currentDemoEvents = demoStore.getJobEvents(jobId);
-        if (currentDemoJob) {
-          setJob(currentDemoJob);
-        }
-        setEvents(currentDemoEvents);
-
-        if (currentDemoJob && isTerminalStatus(currentDemoJob.status)) {
-          isTerminalRef.current = true;
-          setIsStreaming(false);
-          clearInterval(demoTicker);
-          if (currentDemoJob.status === 'FAILED') {
-            onFailed?.(currentDemoJob.error_message || 'Demo job execution failed');
-          } else {
-            onCompleted?.(currentDemoJob);
-          }
-        }
-      }, 200);
-
-      return () => {
-        isMounted = false;
-        clearInterval(demoTicker);
-      };
-    }
 
     // Initial check for real backend job
     checkJobStatus(jobId);
