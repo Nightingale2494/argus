@@ -1,0 +1,78 @@
+# ==============================================================================
+# SYNTHETIC DEMO TENDER — NOT AN OFFICIAL GOVERNMENT RECORD
+# Simulated tender notice generated for ARGUS platform demonstration and testing.
+# ==============================================================================
+
+GOVERNMENT e-MARKETPLACE (GeM)
+TENDER DOCUMENT
+
+TENDER NO: GEM/2026/B/4521090
+DATE OF PUBLICATION: 10-08-2026
+
+TITLE: National Digital Identity Verification and Authentication Suite
+
+PROCURING AUTHORITY: Unique Identification Authority of India (UIDAI)
+
+CATEGORY: Software / Identity Systems Infrastructure
+ESTIMATED VALUE: INR 12,00,00,000 (Twelve Crore Rupees Only)
+EARNEST MONEY DEPOSIT (EMD): INR 24,00,000
+BID SUBMISSION DEADLINE: 01-11-2026, 15:00 IST
+
+================================================================================
+
+SECTION 1: SCOPE OF WORK
+
+1.1 The procuring authority invites bids for the implementation, maintenance,
+and cloud deployment of a secure identity verification and authentication suite.
+
+1.2 Scope includes:
+    (a) Distributed biometric authentication engines
+    (b) Zero-trust identity access management gateways
+    (c) High-availability cloud backup cluster across dual zones
+    (d) Real-time cryptographic ledger audit trails
+
+================================================================================
+
+SECTION 2: MSE AND PREFERENTIAL POLICIES
+
+2.1 MSE preference policy applies in accordance with Public Procurement Policy.
+
+================================================================================
+
+SECTION 3: ELIGIBILITY CRITERIA
+
+3.1 Statutory and Tax Registrations
+
+3.1.1 The bidder must possess a valid Udyam registration certificate if registered under MSME.
+
+3.1.2 Bidder must be registered under GST Act and possess a valid GSTIN.
+
+3.2 Financial Capability
+
+3.2.1 Minimum annual turnover must exceed INR 120,000,000 based on the average of the last three financial years (FY 2023-24, 2024-25, 2025-26).
+
+3.3 Technical Experience
+
+3.3.1 The bidder must have a minimum of 5 years of experience in deployment of enterprise identity and security infrastructure for central or state agencies.
+
+3.4 Integrity and Debarment
+
+3.4.1 The bidder must not be blacklisted or debarred by any Central/State Government department or PSU as on the date of bid submission.
+
+================================================================================
+
+SECTION 4: SUBMISSION REQUIREMENTS
+
+4.1 Mandatory Documents:
+    (a) Certificate of Incorporation
+    (b) GSTIN registration certificate
+    (c) Audited balance sheets and turnover certificate
+    (d) Experience certificates
+    (e) Non-blacklisting undertaking
+
+================================================================================
+
+AUTHORIZED SIGNATORY
+Assistant Director General (Procurement)
+Unique Identification Authority of India (UIDAI)
+New Delhi

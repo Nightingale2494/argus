@@ -316,3 +316,84 @@ def test_human_decision_immutability_after_deep_audit(monkeypatch):
             assert post_audit_dec.reason_code == "COMMITTEE_DISCRETION"
             assert post_audit_dec.remarks == "Authorized exception per committee approval"
             assert post_audit_dec.officer_id == "test-user-001"
+
+
+def test_all_demo_tenders_have_real_persisted_documents(monkeypatch):
+    """Verifies that demo reset / seed creates real persisted Document records and storage objects for all 3 demo tenders."""
+    import hashlib
+    import httpx
+    monkeypatch.setattr(settings, "ALLOW_DEMO_SEED", True)
+
+    headers = get_auth_headers(role=UserRole.ADMIN)
+    with TestClient(app) as client:
+        seed_resp = client.post("/api/v1/demo/seed", headers=headers)
+        assert seed_resp.status_code == 200
+
+        expected_tenders = {
+            "tender_gem_2026_01": "tender_gem_2026_B_4521089.pdf",
+            "tender_gem_2026_02": "meity_cloud_cluster_rfp.pdf",
+            "tender_gem_2026_03": "seci_solar_grid_rfp.pdf",
+        }
+
+        for t_id, exp_filename in expected_tenders.items():
+            # 1. Tender metadata has raw_document_uri
+            t_resp = client.get(f"/api/v1/tenders/{t_id}", headers=headers)
+            assert t_resp.status_code == 200
+            t_data = t_resp.json()
+            assert t_data["raw_document_uri"] is not None
+            assert exp_filename in t_data["raw_document_uri"]
+
+            # 2. Document record exists
+            docs_resp = client.get(f"/api/v1/tenders/{t_id}/documents", headers=headers)
+            assert docs_resp.status_code == 200
+            docs = docs_resp.json()
+            assert len(docs) >= 1
+            doc = next(d for d in docs if d["filename"] == exp_filename)
+            assert doc["sha256"] is not None
+            assert len(doc["sha256"]) == 64
+            assert doc["storage_uri"] is not None
+
+            # 3. Document content downloadable and matches recorded SHA-256
+            content_resp = client.get(f"/api/v1/documents/{doc['id']}/content", headers=headers)
+            assert content_resp.status_code == 200
+            actual_bytes = content_resp.content
+            assert len(actual_bytes) > 0
+            computed_sha = hashlib.sha256(actual_bytes).hexdigest()
+            assert computed_sha.lower() == doc["sha256"].lower()
+
+        # 4. Trigger process_tender on non-flagship tenders (tender_gem_2026_02, tender_gem_2026_03)
+        async def mock_extract_tender_resp(url, *args, **kwargs):
+            req_json = kwargs.get("json", {})
+            doc_id = req_json.get("document_id", "doc_test")
+            doc_sha = req_json.get("document_sha256", "0" * 64)
+            req_id = req_json.get("request_id", "req_test")
+            return httpx.Response(
+                200,
+                json={
+                    "contract_version": "1.0",
+                    "request_id": req_id,
+                    "document_id": doc_id,
+                    "document_sha256": doc_sha,
+                    "status": "COMPLETED",
+                    "requirements": [
+                        {
+                            "clause": "2.1",
+                            "requirement_type": "GST",
+                            "field": "tax.gstin",
+                            "operator": "EXISTS",
+                            "expected_value": True,
+                            "mandatory": True,
+                            "confidence": 0.95,
+                        }
+                    ],
+                },
+            )
+
+        monkeypatch.setattr(httpx.AsyncClient, "post", mock_extract_tender_resp)
+
+        for t_id in ["tender_gem_2026_02", "tender_gem_2026_03"]:
+            proc_resp = client.post(f"/api/v1/tenders/{t_id}/process", headers=headers)
+            assert proc_resp.status_code == 200
+            proc_data = proc_resp.json()
+            assert proc_data["status"] == "COMPLETED", f"Failed for {t_id}: {proc_data.get('error_message')}"
+            assert proc_data.get("error_message") is None

@@ -218,6 +218,7 @@ async def _execute_demo_seed(
             existing.authority = t_data.get("authority")
             existing.budget = t_data.get("budget")
             existing.metadata_json = t_data.get("metadata_json", {})
+            existing.raw_document_uri = t_data.get("raw_document_uri")
             db.commit()
             tender_id_map[t_id] = existing.id
 
@@ -390,51 +391,89 @@ async def _execute_demo_seed(
     storage = get_storage_provider()
     pdf_root = _find_demo_pdf_root()
 
-    # Ingest Flagship Tender Document into physical storage & DB
-    tender_doc_id = "doc_tender_gem_2026_01"
-    flagship_tender_id = tender_id_map.get("tender_gem_2026_01", "tender_gem_2026_01")
-    if pdf_root:
-        tender_pdf = pdf_root / "tender" / "tender_gem_2026_B_4521089.pdf"
-        if tender_pdf.exists():
-            t_bytes = tender_pdf.read_bytes()
-            t_sha = hashlib.sha256(t_bytes).hexdigest()
-            t_key = f"tenders/{flagship_tender_id}/tender_gem_2026_B_4521089.pdf"
-            if storage.file_exists(t_key):
-                storage.delete_file(t_key)
-            t_storage_uri = storage.store_file(t_bytes, t_key)
-            existing_tdoc = db.query(Document).filter(Document.id == tender_doc_id).first()
-            if not existing_tdoc:
-                tdoc = Document(
-                    id=tender_doc_id,
-                    tender_id=flagship_tender_id,
-                    bidder_id=None,
-                    filename="tender_gem_2026_B_4521089.pdf",
-                    storage_uri=t_storage_uri,
-                    sha256=t_sha,
-                    document_type=DocumentType.TENDER,
-                    content_type="application/pdf",
-                    size_bytes=len(t_bytes),
+    # Ingest Tender Documents into physical storage & DB for ALL demo tenders
+    DEMO_TENDER_DOCS = [
+        {
+            "tender_id": "tender_gem_2026_01",
+            "doc_id": "doc_tender_gem_2026_01",
+            "filename": "tender_gem_2026_B_4521089.pdf",
+            "rel_path": "tender/tender_gem_2026_B_4521089.pdf",
+        },
+        {
+            "tender_id": "tender_gem_2026_02",
+            "doc_id": "doc_tender_gem_2026_02",
+            "filename": "meity_cloud_cluster_rfp.pdf",
+            "rel_path": "tender/meity_cloud_cluster_rfp.pdf",
+        },
+        {
+            "tender_id": "tender_gem_2026_03",
+            "doc_id": "doc_tender_gem_2026_03",
+            "filename": "seci_solar_grid_rfp.pdf",
+            "rel_path": "tender/seci_solar_grid_rfp.pdf",
+        },
+    ]
+
+    for t_spec in DEMO_TENDER_DOCS:
+        t_id = tender_id_map.get(t_spec["tender_id"], t_spec["tender_id"])
+        tender_doc_id = t_spec["doc_id"]
+        fname = t_spec["filename"]
+        if pdf_root:
+            tender_pdf = pdf_root / t_spec["rel_path"]
+            if tender_pdf.exists():
+                t_bytes = tender_pdf.read_bytes()
+                t_sha = hashlib.sha256(t_bytes).hexdigest()
+                t_key = f"tenders/{t_id}/{fname}"
+                if storage.file_exists(t_key):
+                    storage.delete_file(t_key)
+                t_storage_uri = storage.store_file(t_bytes, t_key)
+                existing_tdoc = db.query(Document).filter(
+                    (Document.id == tender_doc_id) | ((Document.tender_id == t_id) & (Document.filename == fname))
+                ).first()
+                if not existing_tdoc:
+                    tdoc = Document(
+                        id=tender_doc_id,
+                        tender_id=t_id,
+                        bidder_id=None,
+                        filename=fname,
+                        storage_uri=t_storage_uri,
+                        sha256=t_sha,
+                        document_type=DocumentType.TENDER,
+                        content_type="application/pdf",
+                        size_bytes=len(t_bytes),
+                    )
+                    db.add(tdoc)
+                else:
+                    existing_tdoc.id = tender_doc_id
+                    existing_tdoc.storage_uri = t_storage_uri
+                    existing_tdoc.sha256 = t_sha
+                    existing_tdoc.size_bytes = len(t_bytes)
+                    existing_tdoc.filename = fname
+
+                t_obj = db.query(Tender).filter(Tender.id == t_id).first()
+                if t_obj:
+                    t_obj.raw_document_uri = t_storage_uri
+                    if t_obj.metadata_json and isinstance(t_obj.metadata_json, dict):
+                        att = t_obj.metadata_json.get("attached_file")
+                        if isinstance(att, dict):
+                            att["filename"] = fname
+                            att["size_bytes"] = len(t_bytes)
+                            att["content_type"] = "application/pdf"
+
+                db.commit()
+                AuditLogger.log(
+                    db,
+                    action="DOCUMENT_UPLOADED",
+                    entity_type="DOCUMENT",
+                    entity_id=tender_doc_id,
+                    actor_id=actor_id,
+                    actor_role=actor_role,
+                    payload={
+                        "filename": fname,
+                        "sha256": t_sha,
+                        "storage_uri": t_storage_uri,
+                        "tender_id": t_id,
+                    },
                 )
-                db.add(tdoc)
-            else:
-                existing_tdoc.storage_uri = t_storage_uri
-                existing_tdoc.sha256 = t_sha
-                existing_tdoc.size_bytes = len(t_bytes)
-            db.commit()
-            AuditLogger.log(
-                db,
-                action="DOCUMENT_UPLOADED",
-                entity_type="DOCUMENT",
-                entity_id=tender_doc_id,
-                actor_id=actor_id,
-                actor_role=actor_role,
-                payload={
-                    "filename": "tender_gem_2026_B_4521089.pdf",
-                    "sha256": t_sha,
-                    "storage_uri": t_storage_uri,
-                    "tender_id": flagship_tender_id,
-                },
-            )
 
     # Ingest Bidder Documents and Extracted Facts
     import sys
@@ -830,6 +869,7 @@ async def reset_demo(
             db.query(Bidder).filter(Bidder.id.in_(b_ids)).delete(synchronize_session=False)
 
         # Tender-level Documents (bidder_id=None, tender_id in demo set)
+        db.query(TenderRequirement).filter(TenderRequirement.tender_id.in_(t_ids_to_clean)).update({TenderRequirement.document_id: None}, synchronize_session=False)
         tender_doc_ids = [
             row.id for row in
             db.query(Document.id).filter(Document.tender_id.in_(t_ids_to_clean)).all()

@@ -1,0 +1,53 @@
+# ==============================================================================
+# SYNTHETIC DEMO TENDER — NOT AN OFFICIAL GOVERNMENT RECORD
+# Simulated tender notice generated for ARGUS platform demonstration and testing.
+# ==============================================================================
+
+GOVERNMENT e-MARKETPLACE (GeM)
+TENDER DOCUMENT
+
+TENDER NO: GEM/2026/B/4521091
+DATE OF PUBLICATION: 20-08-2026
+
+TITLE: Smart Solar Grid Micro-Inverter Deployment (Phase IV)
+
+PROCURING AUTHORITY: Solar Energy Corporation of India (SECI)
+
+CATEGORY: Renewable Energy / Grid Hardware
+ESTIMATED VALUE: INR 8,50,00,000 (Eight Crore Fifty Lakh Rupees Only)
+EARNEST MONEY DEPOSIT (EMD): INR 17,00,000
+BID SUBMISSION DEADLINE: 01-12-2026, 12:00 IST
+
+================================================================================
+
+SECTION 1: SCOPE OF WORK
+
+1.1 Procurement, supply, testing, and commissioning of grid-connected smart
+micro-inverters and remote monitoring telemetry units.
+
+================================================================================
+
+SECTION 2: ELIGIBILITY CRITERIA
+
+2.1 Valid GSTIN required and bidder must be registered on the GeM portal.
+
+2.2 MSE bidders shall furnish a valid Udyam registration certificate.
+
+2.3 The bidder must have a minimum of 3 years of experience in solar renewable equipment.
+
+2.4 Annual turnover of INR 85,000,000 or higher based on average of last 3 financial years.
+
+2.5 The bidder must not be blacklisted by any Government agency or PSU.
+
+================================================================================
+
+SECTION 3: SUBMISSION REQUIREMENTS
+
+3.1 Technical and Financial bids must be uploaded before deadline.
+
+================================================================================
+
+AUTHORIZED SIGNATORY
+General Manager (Contracts & Procurement)
+Solar Energy Corporation of India
+New Delhi
