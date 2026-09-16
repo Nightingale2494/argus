@@ -714,6 +714,23 @@ async def reset_demo(
     db: Session = Depends(get_db),
 ):
     """Safely resets ONLY demo-isolated entities without touching authentic data, then re-seeds."""
+    import traceback as _tb
+    try:
+        return await _reset_demo_impl(principal=principal, db=db)
+    except HTTPException:
+        raise
+    except Exception as _exc:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": type(_exc).__name__, "msg": str(_exc), "trace": _tb.format_exc()[-2000:]}
+        )
+
+
+async def _reset_demo_impl(
+    principal: AuthenticatedPrincipal,
+    db: Session,
+):
+    """Internal reset implementation."""
     _check_demo_seed_permission(principal)
 
     # 1. Identify demo tenders strictly by demo IDs or metadata
