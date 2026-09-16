@@ -10,7 +10,23 @@ from app.auth.dependencies import get_current_principal, require_roles
 from app.db.session import get_db
 from app.services.idempotency_service import IdempotencyService
 from app.services.operation_lock_service import OperationLockService
-from app.models.domain import Document, ProcessingJob, Tender, TenderRequirement
+from app.models.domain import (
+    ActiveOperationLock,
+    Bidder,
+    ComplianceRun,
+    Document,
+    Evidence,
+    ExtractedFact,
+    HumanDecision,
+    IdempotencyRecord,
+    JobEvent,
+    ProcessingJob,
+    RiskSignal,
+    RuleEvaluation,
+    Tender,
+    TenderRequirement,
+    VerificationResult,
+)
 from app.schemas.canonical import (
     AuthenticatedPrincipal,
     DocumentRead,
@@ -749,3 +765,167 @@ def list_tender_documents(
 
     documents = db.query(Document).filter(Document.tender_id == tender_id).all()
     return documents
+
+
+def _safe_delete_tender(db: Session, tender: Tender, principal: AuthenticatedPrincipal) -> dict[str, Any]:
+    tender_id = tender.id
+    tender_number = tender.tender_number
+    tender_title = tender.title
+
+    if tender_id.startswith("tender_gem_") or tender_id in {"tender_gem_2026_01", "tender_gem_2026_02", "tender_gem_2026_03"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot delete canonical demo tenders.",
+        )
+
+    b_ids = [b.id for b in db.query(Bidder.id).filter(Bidder.tender_id == tender_id).all()]
+    job_ids = [
+        row.id for row in db.query(ProcessingJob.id).filter(
+            (ProcessingJob.target_id == tender_id) |
+            (ProcessingJob.target_id.in_(b_ids) if b_ids else False)
+        ).all()
+    ]
+
+    bidder_docs = db.query(Document).filter(Document.bidder_id.in_(b_ids)).all() if b_ids else []
+    tender_docs = db.query(Document).filter(Document.tender_id == tender_id).all()
+    all_docs = bidder_docs + tender_docs
+
+    storage = get_storage_provider()
+    files_deleted = 0
+    for doc in all_docs:
+        if doc.storage_uri:
+            try:
+                if storage.delete_file(doc.storage_uri):
+                    files_deleted += 1
+            except Exception:
+                pass
+
+    if b_ids:
+        db.query(RuleEvaluation).filter(RuleEvaluation.bidder_id.in_(b_ids)).delete(synchronize_session=False)
+
+        vr_ids = [
+            row.id for row in
+            db.query(VerificationResult.id).filter(VerificationResult.bidder_id.in_(b_ids)).all()
+        ]
+        if vr_ids:
+            db.query(Evidence).filter(Evidence.verification_result_id.in_(vr_ids)).delete(synchronize_session=False)
+
+        db.query(VerificationResult).filter(VerificationResult.bidder_id.in_(b_ids)).delete(synchronize_session=False)
+        db.query(RiskSignal).filter(RiskSignal.bidder_id.in_(b_ids)).delete(synchronize_session=False)
+        db.query(Evidence).filter(Evidence.bidder_id.in_(b_ids)).delete(synchronize_session=False)
+        db.query(HumanDecision).filter(HumanDecision.bidder_id.in_(b_ids)).delete(synchronize_session=False)
+        db.query(ExtractedFact).filter(ExtractedFact.bidder_id.in_(b_ids)).delete(synchronize_session=False)
+
+    if job_ids:
+        db.query(JobEvent).filter(JobEvent.job_id.in_(job_ids)).delete(synchronize_session=False)
+
+    if b_ids:
+        db.query(ComplianceRun).filter(ComplianceRun.bidder_id.in_(b_ids)).delete(synchronize_session=False)
+        db.query(Document).filter(Document.bidder_id.in_(b_ids)).delete(synchronize_session=False)
+        db.query(Bidder).filter(Bidder.id.in_(b_ids)).delete(synchronize_session=False)
+
+    db.query(TenderRequirement).filter(TenderRequirement.tender_id == tender_id).update(
+        {TenderRequirement.document_id: None}, synchronize_session=False
+    )
+    tender_doc_ids = [d.id for d in tender_docs]
+    if tender_doc_ids:
+        db.query(ExtractedFact).filter(ExtractedFact.document_id.in_(tender_doc_ids)).delete(synchronize_session=False)
+        db.query(Evidence).filter(Evidence.document_id.in_(tender_doc_ids)).delete(synchronize_session=False)
+        db.query(Document).filter(Document.id.in_(tender_doc_ids)).delete(synchronize_session=False)
+
+    db.query(Evidence).filter(Evidence.tender_id == tender_id).delete(synchronize_session=False)
+
+    if job_ids:
+        db.query(ProcessingJob).filter(ProcessingJob.id.in_(job_ids)).delete(synchronize_session=False)
+
+    target_res_ids = [tender_id] + b_ids
+    db.query(ActiveOperationLock).filter(ActiveOperationLock.resource_id.in_(target_res_ids)).delete(synchronize_session=False)
+    db.query(IdempotencyRecord).filter(IdempotencyRecord.resource_id.in_(target_res_ids)).delete(synchronize_session=False)
+
+    db.query(TenderRequirement).filter(TenderRequirement.tender_id == tender_id).delete(synchronize_session=False)
+    db.query(Tender).filter(Tender.id == tender_id).delete(synchronize_session=False)
+    db.commit()
+
+    AuditLogger.log(
+        db,
+        action="TENDER_DELETED",
+        entity_type="TENDER",
+        entity_id=tender_id,
+        actor_id=principal.user_id,
+        actor_role=principal.role.value,
+        payload={
+            "tender_id": tender_id,
+            "tender_number": tender_number,
+            "title": tender_title,
+            "files_deleted": files_deleted,
+            "message": f"Tender '{tender_number}' deleted safely.",
+        },
+    )
+
+    return {
+        "deleted": True,
+        "tender_id": tender_id,
+        "tender_number": tender_number,
+        "title": tender_title,
+        "files_deleted": files_deleted,
+    }
+
+
+@router.delete("/{id}", status_code=status.HTTP_200_OK)
+def delete_tender(
+    id: str,
+    principal: AuthenticatedPrincipal = Depends(require_roles(UserRole.ADMIN)),
+    db: Session = Depends(get_db),
+):
+    """Safely delete a tender and its associated entities in strict FK leaf-to-root order."""
+    tender = db.query(Tender).filter(Tender.id == id).first()
+    if not tender:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Tender with ID {id} not found.",
+        )
+    return _safe_delete_tender(db, tender, principal)
+
+
+@router.post("/cleanup-test-tenders", status_code=status.HTTP_200_OK)
+def cleanup_test_tenders(
+    principal: AuthenticatedPrincipal = Depends(require_roles(UserRole.ADMIN)),
+    db: Session = Depends(get_db),
+):
+    """Identify and safely purge test-only synthetic tenders while strictly preserving demo and legitimate procurement tenders."""
+    all_tenders = db.query(Tender).all()
+    test_prefixes = ("PROD-AUDIT-", "AUTH-TEST-", "TEST-RAG-")
+    test_titles = {
+        "Production Audit Traceability Verification Tender",
+        "ARGUS Authentic Workspace Functional Test",
+        "Test Tender for RAG Retrieval Quality",
+    }
+    protected_ids = {"tender_gem_2026_01", "tender_gem_2026_02", "tender_gem_2026_03"}
+
+    candidates = [
+        t for t in all_tenders
+        if (
+            t.id not in protected_ids
+            and not t.id.startswith("tender_gem_")
+            and not (t.tender_number and (t.tender_number.startswith("Bid No") or t.tender_number.startswith("GEM/")))
+            and (
+                any(t.tender_number and t.tender_number.startswith(prefix) for prefix in test_prefixes)
+                or t.title in test_titles
+            )
+        )
+    ]
+
+    deleted_records = []
+    total_files = 0
+    for cand in candidates:
+        res = _safe_delete_tender(db, cand, principal)
+        deleted_records.append(res)
+        total_files += res.get("files_deleted", 0)
+
+    return {
+        "status": "COMPLETED",
+        "deleted_count": len(deleted_records),
+        "total_files_deleted": total_files,
+        "deleted_tenders": deleted_records,
+    }
+
