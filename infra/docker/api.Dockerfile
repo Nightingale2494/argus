@@ -12,6 +12,7 @@ COPY services/api/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY services/api /app
+COPY data/demo /app/data/demo
 COPY infra/docker/migrate-entrypoint.sh /usr/local/bin/argus-migrate
 RUN chmod +x /usr/local/bin/argus-migrate && chown -R appuser:appgroup /app
 

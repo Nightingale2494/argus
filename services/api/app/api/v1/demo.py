@@ -55,10 +55,20 @@ router = APIRouter(prefix="/demo", tags=["Demo Management"])
 
 
 def _find_demo_pdf_root() -> Path | None:
-    """Locates data/demo/pdf root directory across repo environments."""
+    """Locates data/demo/pdf root directory across repo environments and containers."""
     current = Path(__file__).resolve()
     for p in [current] + list(current.parents):
-        cand = p / "data" / "demo" / "pdf"
+        for sub in (
+            "data/demo/pdf",
+            "demo_data/pdf",
+            "services/api/demo_data/pdf",
+            "services/api/data/demo/pdf",
+        ):
+            cand = p / sub
+            if cand.exists() and cand.is_dir() and (cand / "tender").exists():
+                return cand
+    for fallback in ("/app/demo_data/pdf", "/app/data/demo/pdf", "/data/demo/pdf"):
+        cand = Path(fallback)
         if cand.exists() and cand.is_dir():
             return cand
     return None
