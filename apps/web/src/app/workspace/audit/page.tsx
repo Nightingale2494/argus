@@ -7,9 +7,6 @@ import {
   RefreshCw,
   Filter,
   Search,
-  Clock,
-  CheckCircle,
-  XCircle,
   AlertCircle,
   ExternalLink,
   Database,
@@ -21,6 +18,13 @@ import type { AuditEventRead } from '@/services/types';
 import { SessionRequired } from '@/components/ui/SessionRequired';
 import { useAuth } from '@/hooks/useAuth';
 import { AuditEventDetailDrawer } from '@/components/ui/AuditEventDetailDrawer';
+import {
+  getResolvedJobId,
+  isJobBackedEvent,
+  getResolvedProgress,
+  resolveAuditStatus,
+  AuditStatusBadge,
+} from '@/lib/audit-helpers';
 
 export default function AuditPage() {
   const { isAuthenticated, isDemoPreview } = useAuth();
@@ -135,24 +139,6 @@ export default function AuditPage() {
         return <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-950/80 text-rose-300 border border-rose-800/60">AUTH</span>;
       default:
         return <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-800 text-zinc-400 border border-zinc-700">{category || 'EVENT'}</span>;
-    }
-  };
-
-  const getStatusBadge = (status?: string | null) => {
-    if (!status || status === '—') {
-      return <span className="text-zinc-500 font-mono text-xs">—</span>;
-    }
-    switch (status) {
-      case 'COMPLETED':
-      case 'SUCCESS':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><CheckCircle className="w-2.5 h-2.5" /> SUCCESS</span>;
-      case 'RUNNING':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20"><Clock className="w-2.5 h-2.5 animate-spin" /> RUNNING</span>;
-      case 'FAILED':
-      case 'ERROR':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20"><XCircle className="w-2.5 h-2.5" /> FAILED</span>;
-      default:
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">{status}</span>;
     }
   };
 
@@ -309,6 +295,10 @@ export default function AuditPage() {
               {filteredEvents.map((ev, i) => {
                 const stageDisplay = ev.pipeline_stage || ev.stage;
                 const isSelected = selectedEvent?.id === ev.id;
+                const resolvedJobId = getResolvedJobId(ev);
+                const isJob = isJobBackedEvent(ev);
+                const progressVal = getResolvedProgress(ev);
+                const resolvedStatus = resolveAuditStatus(ev);
 
                 return (
                   <tr
@@ -339,24 +329,54 @@ export default function AuditPage() {
                             {stageDisplay}
                           </span>
                         ) : (
-                          <span className="text-zinc-500 font-mono text-xs">—</span>
+                          <span className="text-zinc-500 font-mono text-xs">N/A</span>
                         )}
                       </div>
                     </td>
 
                     {/* Job ID */}
-                    <td className="px-3.5 py-2.5 font-mono text-xs text-zinc-400 truncate" title={ev.job_id ?? undefined}>
-                      {ev.job_id || '—'}
+                    <td className="px-3.5 py-2.5 font-mono text-xs">
+                      {resolvedJobId ? (
+                        <span className="text-zinc-300 truncate max-w-[120px] inline-block font-mono" title={resolvedJobId}>
+                          {resolvedJobId}
+                        </span>
+                      ) : (
+                        <span className="text-zinc-600 font-mono text-[11px]" title="Non-job audit event">
+                          N/A
+                        </span>
+                      )}
                     </td>
 
                     {/* Status */}
                     <td className="px-3.5 py-2.5 whitespace-nowrap">
-                      {getStatusBadge(ev.status)}
+                      <AuditStatusBadge status={resolvedStatus} />
                     </td>
 
                     {/* Progress */}
-                    <td className="px-3.5 py-2.5 font-mono text-xs text-blue-400 whitespace-nowrap">
-                      {ev.progress != null ? `${ev.progress}%` : '—'}
+                    <td className="px-3.5 py-2.5 whitespace-nowrap font-mono text-xs">
+                      {isJob && progressVal !== null ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-10 h-1.5 bg-zinc-800 rounded-full overflow-hidden flex-shrink-0">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                progressVal === 100
+                                  ? 'bg-emerald-500'
+                                  : resolvedStatus.variant === 'FAILED' || resolvedStatus.variant === 'FAIL'
+                                  ? 'bg-rose-500'
+                                  : 'bg-blue-500'
+                              }`}
+                              style={{ width: `${progressVal}%` }}
+                            />
+                          </div>
+                          <span className="text-blue-400 text-[11px] font-mono font-semibold">
+                            {progressVal}%
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-zinc-600 font-mono text-[11px]" title="Non-job audit event">
+                          N/A
+                        </span>
+                      )}
                     </td>
 
                     {/* Message & Action Traces (Concise Preview, max 2-3 lines) */}

@@ -5,9 +5,6 @@ import Link from 'next/link';
 import {
   X,
   ShieldCheck,
-  CheckCircle,
-  XCircle,
-  Clock,
   Sparkles,
   Database,
   Scale,
@@ -21,6 +18,13 @@ import {
   Hash,
 } from 'lucide-react';
 import type { AuditEventRead } from '@/services/types';
+import {
+  getResolvedJobId,
+  isJobBackedEvent,
+  getResolvedProgress,
+  resolveAuditStatus,
+  AuditStatusBadge,
+} from '@/lib/audit-helpers';
 
 const SENSITIVE_KEY_PATTERNS = [
   'token',
@@ -109,6 +113,11 @@ export const AuditEventDetailDrawer: React.FC<AuditEventDetailDrawerProps> = ({
   const stageDisplay = event.pipeline_stage || event.stage;
   const isDemo = event.mode === 'DEMO';
 
+  const resolvedJobId = getResolvedJobId(event);
+  const isJob = isJobBackedEvent(event);
+  const progressVal = getResolvedProgress(event);
+  const resolvedStatus = resolveAuditStatus(event);
+
   const formatFullTimestamp = (ts?: string | null) => {
     if (!ts || ts === '—' || ts === 'undefined' || ts === 'null') return 'Time unavailable';
     try {
@@ -190,11 +199,11 @@ export const AuditEventDetailDrawer: React.FC<AuditEventDetailDrawerProps> = ({
 
             <p className="text-xs font-mono text-zinc-400 flex flex-wrap items-center gap-x-3 gap-y-1">
               <span>{formatFullTimestamp(event.timestamp)}</span>
-              {event.job_id && (
-                <>
-                  <span className="text-zinc-600">•</span>
-                  <span className="text-zinc-300">Job: {event.job_id}</span>
-                </>
+              <span className="text-zinc-600">•</span>
+              {resolvedJobId ? (
+                <span className="text-zinc-300 font-mono">Job: {resolvedJobId}</span>
+              ) : (
+                <span className="text-zinc-500 font-mono">Not job-based</span>
               )}
             </p>
           </div>
@@ -236,31 +245,19 @@ export const AuditEventDetailDrawer: React.FC<AuditEventDetailDrawerProps> = ({
 
           {/* Status */}
           <div className="flex items-center gap-1">
-            <span className="text-zinc-500 text-[11px]">Status:</span>
-            {event.status === 'COMPLETED' || event.status === 'SUCCESS' ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <CheckCircle className="w-2.5 h-2.5" /> SUCCESS
-              </span>
-            ) : event.status === 'RUNNING' ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                <Clock className="w-2.5 h-2.5 animate-spin" /> RUNNING
-              </span>
-            ) : event.status === 'FAILED' || event.status === 'ERROR' ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                <XCircle className="w-2.5 h-2.5" /> FAILED
-              </span>
-            ) : (
-              <span className="text-zinc-400 text-[11px]">{event.status || '—'}</span>
-            )}
+            <span className="text-zinc-500 text-[11px]">Execution Status:</span>
+            <AuditStatusBadge status={resolvedStatus} />
           </div>
 
           {/* Progress */}
-          {event.progress != null && (
-            <div className="flex items-center gap-1">
-              <span className="text-zinc-500 text-[11px]">Progress:</span>
-              <span className="text-blue-400 font-bold text-[11px]">{event.progress}%</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1">
+            <span className="text-zinc-500 text-[11px]">Progress:</span>
+            {isJob && progressVal !== null ? (
+              <span className="text-blue-400 font-bold text-[11px] font-mono">{progressVal}%</span>
+            ) : (
+              <span className="text-zinc-500 text-[11px] font-mono">Not applicable</span>
+            )}
+          </div>
         </div>
 
         {/* Vertically Scrollable Content Body */}
@@ -299,8 +296,24 @@ export const AuditEventDetailDrawer: React.FC<AuditEventDetailDrawerProps> = ({
                 <span className="text-zinc-200 font-medium break-all">{event.entity_id || '—'}</span>
               </div>
               <div>
-                <span className="text-zinc-500 text-[11px] block">Job ID</span>
-                <span className="text-zinc-200 font-medium break-all">{event.job_id || '—'}</span>
+                <span className="text-zinc-500 text-[11px] block">Job Association</span>
+                {resolvedJobId ? (
+                  <span className="text-zinc-200 font-medium font-mono break-all">{resolvedJobId}</span>
+                ) : (
+                  <span className="text-zinc-500 font-mono text-xs">Not job-based</span>
+                )}
+              </div>
+              <div>
+                <span className="text-zinc-500 text-[11px] block">Execution Status</span>
+                <span className="text-zinc-200 font-medium font-mono">{resolvedStatus.label}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 text-[11px] block">Progress</span>
+                {isJob && progressVal !== null ? (
+                  <span className="text-blue-400 font-bold font-mono">{progressVal}%</span>
+                ) : (
+                  <span className="text-zinc-500 font-mono text-xs">Not applicable</span>
+                )}
               </div>
               <div>
                 <span className="text-zinc-500 text-[11px] block">Storage Source</span>
