@@ -1055,5 +1055,8 @@ class DemoStatusRead(BaseModel):
     expected_fixture_version: str
     healthy: bool
     message: str
-
-
+    # RAG readiness — set to false if flagship pgvector indexing failed
+    rag_ready: bool = False
+    rag_chunks_indexed: int = 0
+    rag_backend: str | None = None
+    last_seed_error: str | None = None

@@ -84,205 +84,6 @@ def _check_demo_seed_permission(principal: AuthenticatedPrincipal):
         )
 
 
-# ── TEMPORARY DIAGNOSTIC ENDPOINT — REMOVE AFTER ROOT CAUSE IDENTIFIED ───────
-# Runs entirely inside Render's environment using its own DATABASE_URL.
-# Performs FK graph inspection + staged delete simulation.
-# ALWAYS ROLLS BACK — production data is never modified.
-# Protected: admin + demo_operator required.
-
-_DEMO_TABLES_FOR_FK_QUERY = (
-    "tenders", "tender_requirements", "bidders", "documents",
-    "extracted_facts", "verification_results", "compliance_runs",
-    "rule_evaluations", "evidence", "risk_signals", "human_decisions",
-    "processing_jobs", "job_events",
-)
-
-
-def _extract_pg_error_safe(exc: Exception) -> dict:
-    """Return only sanitised constraint metadata from a DB error."""
-    from sqlalchemy.exc import IntegrityError, DBAPIError
-    result: dict = {"exception_class": type(exc).__name__}
-    orig = getattr(exc, "orig", None)
-    if orig is not None:
-        result["pgcode"] = getattr(orig, "pgcode", None)
-        diag = getattr(orig, "diag", None)
-        if diag:
-            result["sqlstate"]        = getattr(diag, "sqlstate", None)
-            result["constraint_name"] = getattr(diag, "constraint_name", None)
-            raw = (getattr(diag, "message_detail", "") or "")
-            if "=" in raw:
-                raw = raw[: raw.index("=")].strip() + "=..."
-            result["detail_sanitised"] = raw[:200]
-    return result
-
-
-@router.get(
-    "/reset-diagnosis",
-    include_in_schema=False,  # hidden from public OpenAPI
-    status_code=200,
-)
-def diagnose_reset(
-    principal: AuthenticatedPrincipal = Depends(
-        require_roles(UserRole.ADMIN, UserRole.PROCUREMENT_OFFICER)
-    ),
-    db: Session = Depends(get_db),
-):
-    """TEMPORARY — FK diagnostic for reset 500. Rolls back all changes."""
-    from sqlalchemy import text as _text
-    from sqlalchemy.exc import IntegrityError, DBAPIError
-    _check_demo_seed_permission(principal)
-
-    result: dict = {
-        "transaction_rolled_back": False,
-        "production_data_modified": False,
-        "fk_graph": [],
-        "stage_results": [],
-        "failed_stage": None,
-        "pg_error": None,
-    }
-
-    # ── 1. FK graph from information_schema ───────────────────────────────
-    try:
-        fk_rows = db.execute(
-            _text("""
-SELECT
-    tc.table_name        AS child_table,
-    kcu.column_name      AS child_column,
-    ccu.table_name       AS parent_table,
-    ccu.column_name      AS parent_column,
-    tc.constraint_name   AS constraint_name,
-    rc.delete_rule       AS delete_rule
-FROM information_schema.table_constraints       AS tc
-JOIN information_schema.key_column_usage        AS kcu
-    ON tc.constraint_name = kcu.constraint_name
-   AND tc.table_schema    = kcu.table_schema
-JOIN information_schema.referential_constraints AS rc
-    ON tc.constraint_name   = rc.constraint_name
-   AND tc.table_schema      = rc.constraint_schema
-JOIN information_schema.constraint_column_usage AS ccu
-    ON rc.unique_constraint_name   = ccu.constraint_name
-   AND rc.unique_constraint_schema = ccu.table_schema
-WHERE tc.constraint_type = 'FOREIGN KEY'
-  AND tc.table_schema    = 'public'
-  AND (
-      tc.table_name  = ANY(:tables)
-   OR ccu.table_name = ANY(:tables)
-  )
-ORDER BY parent_table, child_table, child_column
-"""),
-            {"tables": list(_DEMO_TABLES_FOR_FK_QUERY)},
-        ).fetchall()
-        result["fk_graph"] = [
-            {
-                "child":       f"{r.child_table}.{r.child_column}",
-                "parent":      f"{r.parent_table}.{r.parent_column}",
-                "constraint":  r.constraint_name,
-                "delete_rule": r.delete_rule,
-            }
-            for r in fk_rows
-        ]
-    except Exception as fk_exc:
-        result["fk_graph"] = [{"error": type(fk_exc).__name__}]
-
-    # ── 2. Staged delete simulation — ALWAYS ROLLBACK ─────────────────────
-    demo_tender_ids     = [t["id"] for t in DEMO_TENDERS]
-    demo_tender_numbers = [t["tender_number"] for t in DEMO_TENDERS]
-
-    def _run_stage(label: str, fn) -> bool:
-        """Execute fn(), flush, record result. Returns False on failure."""
-        try:
-            fn()
-            db.flush()
-            result["stage_results"].append({"stage": label, "status": "OK"})
-            return True
-        except (IntegrityError, DBAPIError, Exception) as exc:
-            result["failed_stage"] = label
-            result["pg_error"] = _extract_pg_error_safe(exc)
-            result["stage_results"].append({"stage": label, "status": "FAILED"})
-            return False
-
-    try:
-        demo_tenders = (
-            db.query(Tender)
-            .filter(
-                (Tender.id.in_(demo_tender_ids))
-                | (Tender.tender_number.in_(demo_tender_numbers))
-            )
-            .all()
-        )
-        t_ids = [t.id for t in demo_tenders]
-
-        demo_bidders = db.query(Bidder).filter(Bidder.tender_id.in_(t_ids)).all() if t_ids else []
-        b_ids = [b.id for b in demo_bidders]
-
-        demo_job_ids = (
-            [row.id for row in db.query(ProcessingJob.id).filter(
-                (ProcessingJob.target_id.in_(t_ids))
-                | (ProcessingJob.target_id.in_(b_ids) if b_ids else False)
-                | (ProcessingJob.target_type == "DEMO")
-            ).all()]
-            if t_ids or b_ids else []
-        )
-
-        tender_doc_ids = (
-            [row.id for row in db.query(Document.id).filter(Document.tender_id.in_(t_ids)).all()]
-            if t_ids else []
-        )
-
-        result["counts"] = {
-            "tenders": len(t_ids),
-            "bidders": len(b_ids),
-            "processing_jobs": len(demo_job_ids),
-            "tender_docs": len(tender_doc_ids),
-        }
-
-        ok = True
-        if b_ids and ok:
-            ok = _run_stage("RuleEvaluation(bidder)",   lambda: db.query(RuleEvaluation).filter(RuleEvaluation.bidder_id.in_(b_ids)).delete(synchronize_session=False))
-        if b_ids and ok:
-            ok = _run_stage("VerificationResult(bidder)", lambda: db.query(VerificationResult).filter(VerificationResult.bidder_id.in_(b_ids)).delete(synchronize_session=False))
-        if b_ids and ok:
-            ok = _run_stage("RiskSignal(bidder)",       lambda: db.query(RiskSignal).filter(RiskSignal.bidder_id.in_(b_ids)).delete(synchronize_session=False))
-        if b_ids and ok:
-            ok = _run_stage("Evidence(bidder)",         lambda: db.query(Evidence).filter(Evidence.bidder_id.in_(b_ids)).delete(synchronize_session=False))
-        if b_ids and ok:
-            ok = _run_stage("HumanDecision(bidder)",    lambda: db.query(HumanDecision).filter(HumanDecision.bidder_id.in_(b_ids)).delete(synchronize_session=False))
-        if b_ids and ok:
-            ok = _run_stage("ExtractedFact(bidder)",    lambda: db.query(ExtractedFact).filter(ExtractedFact.bidder_id.in_(b_ids)).delete(synchronize_session=False))
-        if demo_job_ids and ok:
-            ok = _run_stage("JobEvent(job_id)",         lambda: db.query(JobEvent).filter(JobEvent.job_id.in_(demo_job_ids)).delete(synchronize_session=False))
-        if b_ids and ok:
-            ok = _run_stage("ComplianceRun(bidder)",    lambda: db.query(ComplianceRun).filter(ComplianceRun.bidder_id.in_(b_ids)).delete(synchronize_session=False))
-        if b_ids and ok:
-            ok = _run_stage("Document(bidder)",         lambda: db.query(Document).filter(Document.bidder_id.in_(b_ids)).delete(synchronize_session=False))
-        if b_ids and ok:
-            ok = _run_stage("Bidder",                   lambda: db.query(Bidder).filter(Bidder.id.in_(b_ids)).delete(synchronize_session=False))
-        if tender_doc_ids and ok:
-            ok = _run_stage("ExtractedFact(tender_doc)", lambda: db.query(ExtractedFact).filter(ExtractedFact.document_id.in_(tender_doc_ids)).delete(synchronize_session=False))
-        if tender_doc_ids and ok:
-            ok = _run_stage("Evidence(tender_doc)",     lambda: db.query(Evidence).filter(Evidence.document_id.in_(tender_doc_ids)).delete(synchronize_session=False))
-        if tender_doc_ids and ok:
-            ok = _run_stage("Document(tender)",         lambda: db.query(Document).filter(Document.id.in_(tender_doc_ids)).delete(synchronize_session=False))
-        if t_ids and ok:
-            ok = _run_stage("Evidence(tender_id)",      lambda: db.query(Evidence).filter(Evidence.tender_id.in_(t_ids)).delete(synchronize_session=False))
-        if demo_job_ids and ok:
-            ok = _run_stage("ProcessingJob",            lambda: db.query(ProcessingJob).filter(ProcessingJob.id.in_(demo_job_ids)).delete(synchronize_session=False))
-        if t_ids and ok:
-            ok = _run_stage("TenderRequirement",        lambda: db.query(TenderRequirement).filter(TenderRequirement.tender_id.in_(t_ids)).delete(synchronize_session=False))
-        if t_ids and ok:
-            _run_stage("Tender",                        lambda: db.query(Tender).filter(Tender.id.in_(t_ids)).delete(synchronize_session=False))
-
-    except Exception as outer_exc:
-        result["outer_error"] = {"type": type(outer_exc).__name__, "msg": str(outer_exc)[:200]}
-    finally:
-        db.rollback()
-        result["transaction_rolled_back"] = True
-
-    result["reset_diagnostic"] = "PASS" if not result["failed_stage"] else f"FAILED_AT_STAGE:{result['failed_stage']}"
-    return result
-
-# ── END TEMPORARY DIAGNOSTIC ENDPOINT ────────────────────────────────────────
-
 
 @router.get("/status", response_model=DemoStatusRead)
 
@@ -326,10 +127,39 @@ def get_demo_status(db: Session = Depends(get_db)):
         .count()
     )
 
-    is_healthy = bool(seeded_version == DEMO_FIXTURE_VERSION and eval_count > 0)
+    # Determine RAG readiness from the most recent RAG_INGEST audit event
+    rag_audit = (
+        db.query(AuditEvent)
+        .filter(
+            AuditEvent.action == "RAG_INGEST",
+            AuditEvent.entity_id == "doc_tender_gem_2026_01",
+        )
+        .order_by(AuditEvent.timestamp.desc())
+        .first()
+    )
+    rag_ready = False
+    rag_chunks_indexed = 0
+    rag_backend: str | None = None
+    last_seed_error: str | None = None
+
+    if rag_audit and rag_audit.payload_json:
+        ingest_status = rag_audit.payload_json.get("status", "")
+        rag_chunks_indexed = int(rag_audit.payload_json.get("chunks_indexed", 0))
+        rag_ready = ingest_status == "COMPLETED" and rag_chunks_indexed > 0
+        rag_backend = "pgvector" if rag_ready else None
+        if not rag_ready:
+            last_seed_error = f"RAG ingest status: {ingest_status}"
+
+    is_healthy = bool(
+        seeded_version == DEMO_FIXTURE_VERSION
+        and eval_count > 0
+        and rag_ready
+    )
 
     if not is_healthy and seeded_version != DEMO_FIXTURE_VERSION:
         msg = f"Demo fixture version mismatch (found '{seeded_version}', expected '{DEMO_FIXTURE_VERSION}'). Reset recommended."
+    elif not is_healthy and not rag_ready:
+        msg = "Demo RAG indexing incomplete or failed. pgvector retrieval unavailable. Re-seed recommended."
     elif not is_healthy:
         msg = "Demo data exists but compliance evaluations are missing. Call POST /api/v1/demo/seed to evaluate."
     else:
@@ -342,6 +172,10 @@ def get_demo_status(db: Session = Depends(get_db)):
         expected_fixture_version=DEMO_FIXTURE_VERSION,
         healthy=is_healthy,
         message=msg,
+        rag_ready=rag_ready,
+        rag_chunks_indexed=rag_chunks_indexed,
+        rag_backend=rag_backend,
+        last_seed_error=last_seed_error,
     )
 
 
@@ -949,11 +783,28 @@ async def reset_demo(
             ).all()
         ]
 
-        # --- Leaf tables (no children) ---
+        # --- Leaf tables — strict FK leaf-to-root order ---
+        # Constraint: fk_evidence_verification_result_id_verification_results
+        #   evidence.verification_result_id → verification_results.id
+        # Evidence children of VerificationResult must be deleted BEFORE their parent.
+        # Not all such Evidence rows are captured by bidder_id; query via VR IDs.
         if b_ids:
             db.query(RuleEvaluation).filter(RuleEvaluation.bidder_id.in_(b_ids)).delete(synchronize_session=False)
+
+            # Collect VR IDs that belong to demo bidders, then delete their Evidence children first
+            vr_ids = [
+                row.id for row in
+                db.query(VerificationResult.id).filter(VerificationResult.bidder_id.in_(b_ids)).all()
+            ]
+            if vr_ids:
+                # Evidence rows keyed by verification_result_id (may have NULL bidder_id)
+                db.query(Evidence).filter(Evidence.verification_result_id.in_(vr_ids)).delete(synchronize_session=False)
+
+            # Now safe to delete VerificationResult (all Evidence children by VR ID gone)
             db.query(VerificationResult).filter(VerificationResult.bidder_id.in_(b_ids)).delete(synchronize_session=False)
+
             db.query(RiskSignal).filter(RiskSignal.bidder_id.in_(b_ids)).delete(synchronize_session=False)
+            # Delete any remaining Evidence rows keyed directly by bidder_id
             db.query(Evidence).filter(Evidence.bidder_id.in_(b_ids)).delete(synchronize_session=False)
             db.query(HumanDecision).filter(HumanDecision.bidder_id.in_(b_ids)).delete(synchronize_session=False)
             db.query(ExtractedFact).filter(ExtractedFact.bidder_id.in_(b_ids)).delete(synchronize_session=False)
