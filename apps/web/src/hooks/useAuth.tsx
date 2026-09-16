@@ -48,6 +48,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false;
   });
 
+  const ensureDemoToken = async (): Promise<string | null> => {
+    const currentToken = getAuthToken();
+    if (currentToken) {
+      try {
+        const parts = currentToken.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]));
+          const now = Math.floor(Date.now() / 1000);
+          if (payload.exp && payload.exp > now + 60) {
+            return currentToken;
+          }
+        }
+      } catch {
+        // Bad token format, refresh
+      }
+    }
+
+    try {
+      const res = await fetch('/api/auth/dev-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'demo.procurement@argus.local',
+          password: 'ArgusDemo2026!',
+          role: 'PROCUREMENT_OFFICER',
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.token) {
+          setAuthToken(data.token);
+          return data.token;
+        }
+      }
+    } catch {
+      // Silently fall through
+    }
+    return null;
+  };
+
   const fetchPrincipal = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -55,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (isDemoPreview) {
       setPrincipal(MOCK_PRINCIPAL);
+      await ensureDemoToken();
       setIsLoading(false);
       return;
     }
@@ -174,6 +215,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (enabled) {
       setPrincipal(MOCK_PRINCIPAL);
       setError(null);
+      ensureDemoToken();
     } else {
       setPrincipal(null);
       fetchPrincipal();
