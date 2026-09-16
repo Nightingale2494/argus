@@ -472,10 +472,9 @@ async def _execute_demo_seed(
                 doc_sha = hashlib.sha256(pdf_bytes).hexdigest()
                 doc_size = len(pdf_bytes)
                 key = f"bidders/{actual_bidder_id}/{d_data['filename']}"
-                if not storage.file_exists(key):
-                    stored_uri = storage.store_file(pdf_bytes, key)
-                else:
-                    stored_uri = key.replace("\\", "/").lstrip("/")
+                if storage.file_exists(key):
+                    storage.delete_file(key)
+                stored_uri = storage.store_file(pdf_bytes, key)
 
             existing_doc = db.query(Document).filter(Document.id == doc_id).first()
             if not existing_doc:

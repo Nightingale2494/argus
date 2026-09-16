@@ -182,16 +182,17 @@ class DemoProvider(BaseVerificationProvider):
                 },
             )
 
-        # Flagship Profile 3: CREST (Suspicious OEM / Conflicting Verification -> REVIEW_REQUIRED)
-        if "CREST" in bidder_name or "MALICIOUS" in bidder_name:
+        # Flagship Profile 3: CREST (Active Debarment / Blacklist -> DISQUALIFIED / FAIL)
+        if "CREST" in bidder_name or "MALICIOUS" in bidder_name or bidder_id == "bidder_crest_02":
             if self.domain == "blacklist" or "debarment" in field.lower() or "blacklisted" in field.lower() or "MALICIOUS" in bidder_name:
+                is_flagship_eval = bidder_id == "bidder_crest_02" or "SOLUTIONS" in bidder_name
                 return VerificationResultRead(
                     id=ver_id,
                     bidder_id=bidder_id,
                     field=field,
-                    claimed_value=False,
-                    verified_value={"debarred": True, "reason": "Debarred by CPP Portal for submission of forged OEM certificate"},
-                    status=VerificationStatus.MISMATCH,
+                    claimed_value=None if is_flagship_eval else False,
+                    verified_value=True if is_flagship_eval else {"debarred": True, "reason": "Debarred by CPP Portal for submission of forged OEM certificate"},
+                    status=VerificationStatus.VERIFIED if is_flagship_eval else VerificationStatus.MISMATCH,
                     source=self.source,
                     mode=self.mode,
                     provider_mode="DEMO_SYNTHETIC",

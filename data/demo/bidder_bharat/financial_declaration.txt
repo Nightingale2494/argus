@@ -1,0 +1,19 @@
+﻿# ==============================================================================
+# SYNTHETIC DEMO DATA — NOT AN OFFICIAL RECORD
+# Fictitious entity generated for ARGUS platform testing and evaluation.
+# All registration numbers, names, and values are simulated.
+# ==============================================================================
+
+ANNUAL TURNOVER SELF-DECLARATION
+
+To Whomsoever It May Concern
+
+This is to certify that M/s BHARAT INFOSYSTEMS LLP, having its registered office
+at No. 112, 3rd Cross, Indiranagar, Bengaluru, Karnataka -- 560038,
+bearing PAN: AAFBB5678K, has self-declared on the GeM portal:
+
+Average Annual Turnover: INR 15,00,00,000
+
+For Bharat Infosystems LLP
+Authorized Signatory
+Date: 15/06/2026

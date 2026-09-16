@@ -287,7 +287,7 @@ DEMO_BIDDERS: dict[str, list[dict[str, Any]]] = {
                 "fixture_version": DEMO_FIXTURE_VERSION,
                 "verification_mode": "DEMO",
                 "scenario": "TURNOVER_SHORTFALL_AND_CLAIM_DISCREPANCY",
-                "expected_outcome": "FAIL",
+                "expected_outcome": "REVIEW_REQUIRED",
             },
         },
         {
@@ -303,8 +303,8 @@ DEMO_BIDDERS: dict[str, list[dict[str, Any]]] = {
                 "is_demo": True,
                 "fixture_version": DEMO_FIXTURE_VERSION,
                 "verification_mode": "DEMO",
-                "scenario": "MISSING_UDYAM_REGISTRATION",
-                "expected_outcome": "REVIEW_REQUIRED",
+                "scenario": "DEBARRED_VENDOR_AND_SUSPENDED_GST",
+                "expected_outcome": "FAIL",
             },
         },
     ],
@@ -513,6 +513,25 @@ DEMO_DOCUMENTS: dict[str, list[dict[str, Any]]] = {
                 },
             ],
         },
+        {
+            "id": "doc_bharat_turnover_declaration",
+            "filename": "financial_declaration.pdf",
+            "storage_uri": "data/demo/pdf/bidder_bharat/financial_declaration.pdf",
+            "sha256": "331cd4d9fb2d67e17db671dae52b78eb8d4676d84577a33eae04b34e59081143",
+            "document_type": "FINANCIAL_STATEMENT",
+            "content_type": "application/pdf",
+            "size_bytes": 2200,
+            "facts": [
+                {
+                    "field": "financial.average_annual_turnover",
+                    "value": 150000000,
+                    "source_page": 1,
+                    "source_text": "Average Annual Turnover: INR 15,00,00,000",
+                    "confidence": 0.85,
+                    "metadata_json": {"currency": "INR", "unit": "INR"},
+                }
+            ],
+        },
     ],
     "bidder_crest_02": [
         {
@@ -567,13 +586,6 @@ DEMO_DOCUMENTS: dict[str, list[dict[str, Any]]] = {
                     "source_page": 1,
                     "source_text": "Crest Solutions Private Limited holds 4 years of operating track record.",
                     "confidence": 1.0,
-                },
-                {
-                    "field": "legal.blacklisted",
-                    "value": False,
-                    "source_page": 1,
-                    "source_text": "The bidder claims no debarment.",
-                    "confidence": 0.85,
                 },
             ],
         },
