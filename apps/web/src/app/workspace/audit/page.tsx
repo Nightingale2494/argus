@@ -1,16 +1,26 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
-import { 
-  ShieldCheck, RefreshCw, Filter, Search, Clock, 
-  CheckCircle, XCircle, AlertCircle, ExternalLink, Database, Sparkles,
-  Scale, UserCheck, ArrowUpRight
-} from "lucide-react";
-import { api } from "@/services/api";
-import { AuditEventRead } from "@/services/types";
-import { SessionRequired } from "@/components/ui/SessionRequired";
-import { useAuth } from "@/hooks/useAuth";
+import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import {
+  ShieldCheck,
+  RefreshCw,
+  Filter,
+  Search,
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  ExternalLink,
+  Database,
+  Sparkles,
+  ArrowUpRight,
+} from 'lucide-react';
+import { api } from '@/services/api';
+import type { AuditEventRead } from '@/services/types';
+import { SessionRequired } from '@/components/ui/SessionRequired';
+import { useAuth } from '@/hooks/useAuth';
+import { AuditEventDetailDrawer } from '@/components/ui/AuditEventDetailDrawer';
 
 export default function AuditPage() {
   const { isAuthenticated, isDemoPreview } = useAuth();
@@ -18,12 +28,15 @@ export default function AuditPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Selected event for detail drawer
+  const [selectedEvent, setSelectedEvent] = useState<AuditEventRead | null>(null);
+
   // Filters
-  const [searchTerm, setSearchTerm] = useState("");
-  const [modeFilter, setModeFilter] = useState<"ALL" | "AUTHENTIC" | "DEMO">("ALL");
-  const [categoryFilter, setCategoryFilter] = useState("ALL");
-  const [stageFilter, setStageFilter] = useState("ALL");
-  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [modeFilter, setModeFilter] = useState<'ALL' | 'AUTHENTIC' | 'DEMO'>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [stageFilter, setStageFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
 
   const loadAuditEvents = useCallback(async () => {
     setLoading(true);
@@ -38,7 +51,7 @@ export default function AuditPage() {
       const data = await api.getAuditEvents();
       setEvents(data);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load authoritative audit event log.");
+      setError(err instanceof Error ? err.message : 'Failed to load authoritative audit event log.');
     } finally {
       setLoading(false);
     }
@@ -49,18 +62,18 @@ export default function AuditPage() {
   }, [loadAuditEvents]);
 
   const filteredEvents = events.filter((ev) => {
-    const evMode = ev.mode || (isDemoPreview ? "DEMO" : "AUTHENTIC");
-    if (modeFilter !== "ALL" && evMode !== modeFilter) return false;
-    if (categoryFilter !== "ALL" && ev.event_category !== categoryFilter) return false;
-    if (stageFilter !== "ALL") {
+    const evMode = ev.mode || (isDemoPreview ? 'DEMO' : 'AUTHENTIC');
+    if (modeFilter !== 'ALL' && evMode !== modeFilter) return false;
+    if (categoryFilter !== 'ALL' && ev.event_category !== categoryFilter) return false;
+    if (stageFilter !== 'ALL') {
       const evStage = ev.pipeline_stage || ev.stage;
       if (evStage !== stageFilter) return false;
     }
-    if (statusFilter !== "ALL") {
-      const s = (ev.status || "").toUpperCase();
-      if (statusFilter === "SUCCESS" && s !== "SUCCESS" && s !== "COMPLETED") return false;
-      if (statusFilter === "FAILED" && s !== "FAILED" && s !== "ERROR") return false;
-      if (statusFilter === "RUNNING" && s !== "RUNNING") return false;
+    if (statusFilter !== 'ALL') {
+      const s = (ev.status || '').toUpperCase();
+      if (statusFilter === 'SUCCESS' && s !== 'SUCCESS' && s !== 'COMPLETED') return false;
+      if (statusFilter === 'FAILED' && s !== 'FAILED' && s !== 'ERROR') return false;
+      if (statusFilter === 'RUNNING' && s !== 'RUNNING') return false;
     }
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
@@ -77,29 +90,29 @@ export default function AuditPage() {
   });
 
   const formatTimestamp = (ts?: string | null) => {
-    if (!ts || ts === "—" || ts === "undefined" || ts === "null") return "Time unavailable";
+    if (!ts || ts === '—' || ts === 'undefined' || ts === 'null') return '—';
     try {
       const d = new Date(ts);
-      if (isNaN(d.getTime())) return "Time unavailable";
+      if (isNaN(d.getTime())) return '—';
       return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
     } catch {
-      return "Time unavailable";
+      return '—';
     }
   };
 
   const getModeBadge = (mode?: string, source?: string) => {
-    const isDemo = mode === "DEMO";
+    const isDemo = mode === 'DEMO';
     return (
       <span
         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${
           isDemo
-            ? "bg-amber-950/60 text-amber-300 border-amber-800/60"
-            : "bg-emerald-950/60 text-emerald-300 border-emerald-800/60"
+            ? 'bg-amber-950/60 text-amber-300 border-amber-800/60'
+            : 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
         }`}
-        title={`Source: ${source || (isDemo ? "DEMO_STORE / SYNTHETIC" : "BACKEND / DATABASE")}`}
+        title={`Source: ${source || (isDemo ? 'DEMO_STORE / SYNTHETIC' : 'BACKEND / DATABASE')}`}
       >
         {isDemo ? <Sparkles className="w-2.5 h-2.5 text-amber-400" /> : <Database className="w-2.5 h-2.5 text-emerald-400" />}
-        {isDemo ? "DEMO" : "AUTHENTIC"}
+        {isDemo ? 'DEMO' : 'AUTHENTIC'}
       </span>
     );
   };
@@ -107,39 +120,39 @@ export default function AuditPage() {
   const getCategoryBadge = (category?: string) => {
     switch (category) {
       case 'PROVIDER_HEALTH':
-        return <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-950/80 text-amber-300 border border-amber-800/60">PROVIDER</span>;
+        return <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-950/80 text-amber-300 border border-amber-800/60">PROVIDER</span>;
       case 'COMPLIANCE':
-        return <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-950/80 text-indigo-300 border border-indigo-800/60">COMPLIANCE</span>;
+        return <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-950/80 text-indigo-300 border border-indigo-800/60">COMPLIANCE</span>;
       case 'PIPELINE':
-        return <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-950/80 text-blue-300 border border-blue-800/60">PIPELINE</span>;
+        return <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-950/80 text-blue-300 border border-blue-800/60">PIPELINE</span>;
       case 'HUMAN_DECISION':
-        return <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800/60">DECISION</span>;
+        return <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800/60">DECISION</span>;
       case 'TENDER':
-        return <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-950/80 text-purple-300 border border-purple-800/60">TENDER</span>;
+        return <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-950/80 text-purple-300 border border-purple-800/60">TENDER</span>;
       case 'BIDDER':
-        return <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-800/60">BIDDER</span>;
+        return <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-800/60">BIDDER</span>;
       case 'AUTH':
-        return <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-950/80 text-rose-300 border border-rose-800/60">AUTH</span>;
+        return <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-950/80 text-rose-300 border border-rose-800/60">AUTH</span>;
       default:
-        return <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-zinc-800 text-zinc-400 border border-zinc-700">{category || 'EVENT'}</span>;
+        return <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-800 text-zinc-400 border border-zinc-700">{category || 'EVENT'}</span>;
     }
   };
 
   const getStatusBadge = (status?: string | null) => {
-    if (!status || status === "—") {
+    if (!status || status === '—') {
       return <span className="text-zinc-500 font-mono text-xs">—</span>;
     }
     switch (status) {
-      case "COMPLETED":
-      case "SUCCESS":
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><CheckCircle className="w-3 h-3" /> SUCCESS</span>;
-      case "RUNNING":
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20"><Clock className="w-3 h-3 animate-spin" /> RUNNING</span>;
-      case "FAILED":
-      case "ERROR":
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20"><XCircle className="w-3 h-3" /> FAILED</span>;
+      case 'COMPLETED':
+      case 'SUCCESS':
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><CheckCircle className="w-2.5 h-2.5" /> SUCCESS</span>;
+      case 'RUNNING':
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20"><Clock className="w-2.5 h-2.5 animate-spin" /> RUNNING</span>;
+      case 'FAILED':
+      case 'ERROR':
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20"><XCircle className="w-2.5 h-2.5" /> FAILED</span>;
       default:
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">{status}</span>;
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">{status}</span>;
     }
   };
 
@@ -154,6 +167,7 @@ export default function AuditPage() {
 
   return (
     <div className="space-y-6">
+      {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2.5">
@@ -166,9 +180,9 @@ export default function AuditPage() {
         </div>
         <button
           onClick={loadAuditEvents}
-          className="inline-flex items-center gap-2 px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium rounded-lg transition-colors border border-zinc-700"
+          className="inline-flex items-center gap-2 px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium rounded-lg transition-colors border border-zinc-700 cursor-pointer"
         >
-          <RefreshCw className="w-4 h-4" /> Refresh Audit Trail
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh Audit Trail
         </button>
       </div>
 
@@ -189,15 +203,15 @@ export default function AuditPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search audit events, clauses, or Job IDs..."
-              className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-blue-500"
+              className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 font-mono"
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Filter className="w-3.5 h-3.5 text-zinc-400" />
             <select
               value={modeFilter}
-              onChange={(e) => setModeFilter(e.target.value as "ALL" | "AUTHENTIC" | "DEMO")}
-              className="px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 font-mono"
+              onChange={(e) => setModeFilter(e.target.value as 'ALL' | 'AUTHENTIC' | 'DEMO')}
+              className="px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 font-mono cursor-pointer"
             >
               <option value="ALL">All Modes</option>
               <option value="AUTHENTIC">Authentic Mode</option>
@@ -206,7 +220,7 @@ export default function AuditPage() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 font-mono"
+              className="px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 font-mono cursor-pointer"
             >
               <option value="ALL">All Categories</option>
               <option value="COMPLIANCE">Compliance Engine</option>
@@ -222,7 +236,7 @@ export default function AuditPage() {
             <select
               value={stageFilter}
               onChange={(e) => setStageFilter(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 font-mono"
+              className="px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 font-mono cursor-pointer"
             >
               <option value="ALL">All Stages</option>
               <option value="UPLOAD">UPLOAD</option>
@@ -238,7 +252,7 @@ export default function AuditPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 font-mono"
+              className="px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 font-mono cursor-pointer"
             >
               <option value="ALL">All Statuses</option>
               <option value="SUCCESS">SUCCESS / COMPLETED</option>
@@ -247,7 +261,7 @@ export default function AuditPage() {
             </select>
           </div>
         </div>
-        <div className="text-xs text-zinc-400">
+        <div className="text-xs text-zinc-400 font-mono">
           Showing <span className="font-semibold text-zinc-200">{filteredEvents.length}</span> events
         </div>
       </div>
@@ -257,49 +271,71 @@ export default function AuditPage() {
         <div className="flex items-center justify-center min-h-[40vh]">
           <div className="flex flex-col items-center gap-3">
             <RefreshCw className="w-6 h-6 text-blue-500 animate-spin" />
-            <p className="text-zinc-400 text-xs">Streaming audit telemetry...</p>
+            <p className="text-zinc-400 text-xs font-mono">Streaming audit telemetry...</p>
           </div>
         </div>
       ) : filteredEvents.length === 0 ? (
         <div className="p-12 text-center rounded-xl bg-zinc-900/40 border border-zinc-800/80">
           <ShieldCheck className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
           <h3 className="text-base font-semibold text-zinc-300">No Audit Events Logged</h3>
-          <p className="text-sm text-zinc-500 mt-1">Actions performed across pipelines and reviews are streamed directly into this ledger.</p>
+          <p className="text-sm text-zinc-500 mt-1">
+            Actions performed across pipelines and reviews are streamed directly into this ledger.
+          </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-zinc-800/80 bg-zinc-900/40">
-          <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto rounded-xl border border-zinc-800/80 bg-zinc-900/40 shadow-sm">
+          <table className="w-full text-left text-sm table-fixed min-w-[1080px]">
+            <colgroup>
+              <col className="w-[115px]" />
+              <col className="w-[115px]" />
+              <col className="w-[190px]" />
+              <col className="w-[130px]" />
+              <col className="w-[110px]" />
+              <col className="w-[100px]" />
+              <col />
+            </colgroup>
             <thead>
-              <tr className="border-b border-zinc-800 text-xs text-zinc-400 font-semibold bg-zinc-950/40">
-                <th className="px-5 py-3">Timestamp</th>
-                <th className="px-5 py-3">Mode</th>
-                <th className="px-5 py-3">Category / Stage</th>
-                <th className="px-5 py-3">Job ID</th>
-                <th className="px-5 py-3">Status</th>
-                <th className="px-5 py-3">Progress</th>
-                <th className="px-5 py-3">Message & Action Traces</th>
+              <tr className="border-b border-zinc-800 text-xs text-zinc-400 font-semibold bg-zinc-950/60">
+                <th className="px-3.5 py-2.5">Timestamp</th>
+                <th className="px-3.5 py-2.5">Mode</th>
+                <th className="px-3.5 py-2.5">Category / Stage</th>
+                <th className="px-3.5 py-2.5">Job ID</th>
+                <th className="px-3.5 py-2.5">Status</th>
+                <th className="px-3.5 py-2.5">Progress</th>
+                <th className="px-3.5 py-2.5">Message &amp; Action Traces</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/60">
               {filteredEvents.map((ev, i) => {
                 const stageDisplay = ev.pipeline_stage || ev.stage;
-                const payload = (ev.payload_json || {}) as Record<string, unknown>;
-                const isClauseEval = ev.action === "CLAUSE_EVALUATED";
-                const isDecision = ev.action === "HUMAN_DECISION_RECORDED";
+                const isSelected = selectedEvent?.id === ev.id;
 
                 return (
-                  <tr key={ev.id || i} className="hover:bg-zinc-800/30 transition-colors group">
-                    <td className="px-5 py-3.5 font-mono text-xs text-zinc-400 whitespace-nowrap">
+                  <tr
+                    key={ev.id || i}
+                    onClick={() => setSelectedEvent(ev)}
+                    className={`cursor-pointer transition-colors ${
+                      isSelected
+                        ? 'bg-zinc-800/70 ring-1 ring-inset ring-blue-500/50'
+                        : 'hover:bg-zinc-800/40'
+                    }`}
+                  >
+                    {/* Timestamp */}
+                    <td className="px-3.5 py-2.5 font-mono text-xs text-zinc-400 whitespace-nowrap">
                       {formatTimestamp(ev.timestamp)}
                     </td>
-                    <td className="px-5 py-3.5 whitespace-nowrap">
+
+                    {/* Mode */}
+                    <td className="px-3.5 py-2.5 whitespace-nowrap">
                       {getModeBadge(ev.mode, ev.source)}
                     </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2">
+
+                    {/* Category / Stage */}
+                    <td className="px-3.5 py-2.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         {getCategoryBadge(ev.event_category)}
-                        {stageDisplay && String(stageDisplay) !== "—" ? (
-                          <span className="px-2 py-0.5 rounded text-xs font-mono bg-zinc-800 text-zinc-300 border border-zinc-700">
+                        {stageDisplay && String(stageDisplay) !== '—' ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-800 text-zinc-300 border border-zinc-700 truncate max-w-[95px]" title={String(stageDisplay)}>
                             {stageDisplay}
                           </span>
                         ) : (
@@ -307,114 +343,28 @@ export default function AuditPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 font-mono text-xs text-zinc-500 truncate max-w-[120px]" title={ev.job_id ?? undefined}>
-                      {ev.job_id || "—"}
+
+                    {/* Job ID */}
+                    <td className="px-3.5 py-2.5 font-mono text-xs text-zinc-400 truncate" title={ev.job_id ?? undefined}>
+                      {ev.job_id || '—'}
                     </td>
-                    <td className="px-5 py-3.5">{getStatusBadge(ev.status)}</td>
-                    <td className="px-5 py-3.5 font-mono text-xs text-blue-400">
-                      {ev.progress != null ? `${ev.progress}%` : "—"}
+
+                    {/* Status */}
+                    <td className="px-3.5 py-2.5 whitespace-nowrap">
+                      {getStatusBadge(ev.status)}
                     </td>
-                    <td className="px-5 py-3.5 text-xs text-zinc-300">
-                      {/* 1. Specialized Presentation: CLAUSE_EVALUATED */}
-                      {isClauseEval ? (
-                        <div className="p-3 rounded-lg bg-zinc-950/80 border border-indigo-900/40 space-y-1.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 font-mono font-semibold text-zinc-200">
-                              <Scale className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
-                              <span>{String(payload.clause_reference || ev.clause_reference || "Clause")}</span>
-                              <span className="text-zinc-500 font-normal text-[11px]">
-                                ({String(payload.field || "criterion")})
-                              </span>
-                            </div>
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${
-                                payload.status === "PASS" || payload.status === "SATISFIED"
-                                  ? "bg-emerald-950/80 text-emerald-300 border-emerald-800/60"
-                                  : payload.status === "FAIL" || payload.status === "FAILED"
-                                  ? "bg-rose-950/80 text-rose-300 border-rose-800/60"
-                                  : "bg-amber-950/80 text-amber-300 border-amber-800/60"
-                              }`}
-                            >
-                              {String(payload.status || "EVALUATED")}
-                            </span>
-                          </div>
-                          <div className="text-[11px] font-mono text-zinc-400 grid grid-cols-1 sm:grid-cols-2 gap-1 bg-zinc-900/60 p-2 rounded border border-zinc-800/60">
-                            <div>
-                              <span className="text-zinc-500">Expected: </span>
-                              <span className="text-zinc-300">{String(payload.operator || "=")} {String(payload.expected_value ?? "—")}</span>
-                            </div>
-                            <div>
-                              <span className="text-zinc-500">Observed: </span>
-                              <span className="text-zinc-200 font-semibold">{String(payload.observed_value ?? "—")}</span>
-                            </div>
-                          </div>
-                          {ev.target_url && (
-                            <div className="pt-1 flex justify-end">
-                              <Link
-                                href={ev.target_url}
-                                className="inline-flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 font-mono transition-colors"
-                              >
-                                <span>Inspect Rule in Matrix</span>
-                                <ArrowUpRight className="w-3 h-3" />
-                              </Link>
-                            </div>
-                          )}
-                        </div>
-                      ) : isDecision ? (
-                        /* 2. Specialized Presentation: HUMAN_DECISION_RECORDED */
-                        <div className="p-3 rounded-lg bg-zinc-950/80 border border-emerald-900/40 space-y-1.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 font-mono font-semibold text-zinc-200">
-                              <UserCheck className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                              <span>Decision: {String(payload.officer_decision || payload.status || "DETERMINED")}</span>
-                              {payload.decision_type === "OVERRIDE" && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-950/80 text-purple-300 border border-purple-800/60">
-                                  OVERRIDE
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[11px] font-mono text-zinc-400">
-                              By: {String(payload.officer_name || ev.actor || "Officer")}
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-zinc-300 bg-zinc-900/60 p-2 rounded border border-zinc-800/60">
-                            <span className="text-zinc-500 font-mono">Remarks: </span>
-                            <span>{String(payload.remarks || "No remarks provided.")}</span>
-                          </div>
-                          {ev.target_url && (
-                            <div className="pt-1 flex justify-end">
-                              <Link
-                                href={ev.target_url}
-                                className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 font-mono transition-colors"
-                              >
-                                <span>Open Human Review</span>
-                                <ArrowUpRight className="w-3 h-3" />
-                              </Link>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        /* 3. General Event Presentation with Target Navigation */
-                        <div>
-                          <div>{ev.message || "—"}</div>
-                          {(ev.action || ev.entity_type) && (
-                            <div className="text-[11px] font-mono text-zinc-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                              {ev.action && <span className="text-zinc-400">{ev.action}</span>}
-                              {ev.entity_type && <span>• {ev.entity_type}:{ev.entity_id}</span>}
-                              {ev.actor && <span>• actor:{ev.actor}</span>}
-                              {ev.target_url && (
-                                <Link
-                                  href={ev.target_url}
-                                  className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 transition-colors ml-1"
-                                >
-                                  <span>View Resource</span>
-                                  <ExternalLink className="w-2.5 h-2.5" />
-                                </Link>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
+
+                    {/* Progress */}
+                    <td className="px-3.5 py-2.5 font-mono text-xs text-blue-400 whitespace-nowrap">
+                      {ev.progress != null ? `${ev.progress}%` : '—'}
+                    </td>
+
+                    {/* Message & Action Traces (Concise Preview, max 2-3 lines) */}
+                    <td className="px-3.5 py-2.5 text-xs text-zinc-300">
+                      <AuditMessagePreview
+                        event={ev}
+                        onOpenDrawer={() => setSelectedEvent(ev)}
+                      />
                     </td>
                   </tr>
                 );
@@ -423,6 +373,250 @@ export default function AuditPage() {
           </table>
         </div>
       )}
+
+      {/* Full Event Detail Drawer */}
+      <AuditEventDetailDrawer
+        isOpen={Boolean(selectedEvent)}
+        onClose={() => setSelectedEvent(null)}
+        event={selectedEvent}
+      />
+    </div>
+  );
+}
+
+/**
+ * Renders a compact preview (approx 2-3 lines) of the message and action traces
+ * for an audit event, avoiding large height blowouts in table rows.
+ */
+function AuditMessagePreview({
+  event,
+  onOpenDrawer,
+}: {
+  event: AuditEventRead;
+  onOpenDrawer: () => void;
+}) {
+  const payload = (event.payload_json || {}) as Record<string, unknown>;
+  const isClauseEval = event.action === 'CLAUSE_EVALUATED' || Boolean(payload.clause_reference);
+  const isDecision = event.action === 'HUMAN_DECISION_RECORDED' || Boolean(payload.officer_decision);
+  const isComplianceCompleted =
+    event.action === 'COMPLIANCE_EVALUATION_COMPLETED' ||
+    event.action === 'COMPLIANCE_RUN_COMPLETED';
+
+  // 1. Clause Evaluation Preview
+  if (isClauseEval) {
+    const clause = String(payload.clause_reference || event.clause_reference || 'Clause');
+    const field = String(payload.field || 'criterion');
+    const status = String(payload.status || 'EVALUATED').toUpperCase();
+    const isPass = status === 'PASS' || status === 'SATISFIED';
+    const isFail = status === 'FAIL' || status === 'FAILED';
+    const op = String(payload.operator || '=');
+    const exp = String(payload.expected_value ?? '—');
+    const obs = String(payload.observed_value ?? '—');
+
+    return (
+      <div className="flex items-center justify-between gap-2.5 min-w-0">
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-mono font-semibold text-zinc-100 text-xs">
+              Clause {clause}
+            </span>
+            <span className="text-zinc-500 font-mono text-[11px] truncate max-w-[180px]" title={field}>
+              • {field}
+            </span>
+            <span
+              className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-bold uppercase border ${
+                isPass
+                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
+                  : isFail
+                  ? 'bg-rose-950/80 text-rose-300 border-rose-800/60'
+                  : 'bg-amber-950/80 text-amber-300 border-amber-800/60'
+              }`}
+            >
+              {status}
+            </span>
+          </div>
+          <div className="text-[11px] font-mono text-zinc-400 truncate" title={`Expected ${op} ${exp} • Observed ${obs}`}>
+            <span className="text-zinc-500">Expected:</span> {op} {exp}
+            <span className="text-zinc-600 mx-1.5">•</span>
+            <span className="text-zinc-500">Observed:</span>{' '}
+            <span className={isFail ? 'text-rose-300 font-semibold' : 'text-zinc-300'}>{obs}</span>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenDrawer();
+            }}
+            className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-mono text-[11px] border border-zinc-700 transition-colors cursor-pointer"
+          >
+            Details
+          </button>
+          {event.target_url && (
+            <Link
+              href={event.target_url}
+              onClick={(e) => e.stopPropagation()}
+              className="px-2 py-0.5 rounded bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 hover:text-indigo-200 font-mono text-[11px] border border-indigo-800/60 transition-colors inline-flex items-center gap-0.5"
+            >
+              <span>Matrix</span>
+              <ArrowUpRight className="w-2.5 h-2.5" />
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Human Review Decision Preview
+  if (isDecision) {
+    const decision = String(payload.officer_decision || payload.status || 'DETERMINED').toUpperCase();
+    const officer = String(payload.officer_name || event.actor || 'Officer');
+    const remarks = String(payload.remarks || 'Human review decision recorded.');
+
+    return (
+      <div className="flex items-center justify-between gap-2.5 min-w-0">
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-mono font-semibold text-emerald-300 text-xs">
+              Decision: {decision}
+            </span>
+            <span className="text-zinc-500 font-mono text-[11px]">
+              • by {officer}
+            </span>
+          </div>
+          <div className="text-[11px] text-zinc-400 truncate" title={remarks}>
+            {remarks}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenDrawer();
+            }}
+            className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-mono text-[11px] border border-zinc-700 transition-colors cursor-pointer"
+          >
+            Details
+          </button>
+          {event.target_url && (
+            <Link
+              href={event.target_url}
+              onClick={(e) => e.stopPropagation()}
+              className="px-2 py-0.5 rounded bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 hover:text-emerald-200 font-mono text-[11px] border border-emerald-800/60 transition-colors inline-flex items-center gap-0.5"
+            >
+              <span>Review</span>
+              <ArrowUpRight className="w-2.5 h-2.5" />
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Compliance Evaluation Completed Preview
+  if (isComplianceCompleted) {
+    const overall = String(payload.overall_status || 'COMPLETED').toUpperCase();
+    const isPass = overall === 'PASS';
+    const isFail = overall === 'FAIL';
+    const rulesCount = payload.rules_count || payload.evaluations_count;
+
+    return (
+      <div className="flex items-center justify-between gap-2.5 min-w-0">
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <div className="text-xs text-zinc-200 truncate">
+            {event.message || 'Compliance evaluation completed.'}
+          </div>
+          <div className="text-[11px] font-mono text-zinc-400 flex items-center gap-1.5">
+            <span className="text-zinc-500">Overall:</span>
+            <span
+              className={`font-bold ${
+                isPass ? 'text-emerald-400' : isFail ? 'text-rose-400' : 'text-amber-400'
+              }`}
+            >
+              {overall}
+            </span>
+            {Boolean(rulesCount) && (
+              <>
+                <span className="text-zinc-600">•</span>
+                <span className="text-zinc-400">{String(rulesCount)} clauses evaluated</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenDrawer();
+            }}
+            className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-mono text-[11px] border border-zinc-700 transition-colors cursor-pointer"
+          >
+            Details
+          </button>
+          {event.target_url && (
+            <Link
+              href={event.target_url}
+              onClick={(e) => e.stopPropagation()}
+              className="px-2 py-0.5 rounded bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 hover:text-blue-200 font-mono text-[11px] border border-blue-800/60 transition-colors inline-flex items-center gap-0.5"
+            >
+              <span>Resource</span>
+              <ExternalLink className="w-2.5 h-2.5" />
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 4. Default / Generic Event Preview (with line-clamp)
+  return (
+    <div className="flex items-center justify-between gap-2.5 min-w-0">
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <div className="text-xs text-zinc-200 line-clamp-1 break-words" title={event.message || undefined}>
+          {event.message || '—'}
+        </div>
+        {(event.action || event.entity_type) && (
+          <div className="text-[11px] font-mono text-zinc-500 truncate">
+            {event.action && <span className="text-zinc-400">{event.action}</span>}
+            {event.entity_type && (
+              <span>
+                {' '}• {event.entity_type}:{event.entity_id || '—'}
+              </span>
+            )}
+            {event.actor && <span> • actor:{event.actor}</span>}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenDrawer();
+          }}
+          className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-mono text-[11px] border border-zinc-700 transition-colors cursor-pointer"
+        >
+          Details
+        </button>
+        {event.target_url && (
+          <Link
+            href={event.target_url}
+            onClick={(e) => e.stopPropagation()}
+            className="px-2 py-0.5 rounded bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 hover:text-blue-200 font-mono text-[11px] border border-blue-800/60 transition-colors inline-flex items-center gap-0.5"
+          >
+            <span>Resource</span>
+            <ExternalLink className="w-2.5 h-2.5" />
+          </Link>
+        )}
+      </div>
     </div>
   );
 }
