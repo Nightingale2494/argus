@@ -226,12 +226,18 @@ class RAGServiceAdapter:
         """Ingests a parsed document into the intelligence service RAG index."""
         url = settings.ARGUS_INTELLIGENCE_RAG_INGEST_URL
         if not url or not url.strip():
-            return {
-                "success": False,
-                "error_code": "RAG_SERVICE_UNAVAILABLE",
-                "message": "ARGUS RAG ingest URL is not configured.",
-                "chunks_indexed": 0,
-            }
+            if settings.ARGUS_INTELLIGENCE_BASE_URL:
+                url = f"{settings.ARGUS_INTELLIGENCE_BASE_URL.rstrip('/')}/rag-ingest"
+            elif settings.ARGUS_INTELLIGENCE_RAG_URL:
+                base = settings.ARGUS_INTELLIGENCE_RAG_URL.rsplit("/", 1)[0]
+                url = f"{base}/rag-ingest"
+            else:
+                return {
+                    "success": False,
+                    "error_code": "RAG_SERVICE_UNAVAILABLE",
+                    "message": "ARGUS RAG ingest URL is not configured.",
+                    "chunks_indexed": 0,
+                }
 
         headers: dict[str, str] = {
             "Accept": "application/json",

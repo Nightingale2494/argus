@@ -399,10 +399,9 @@ async def _execute_demo_seed(
             t_bytes = tender_pdf.read_bytes()
             t_sha = hashlib.sha256(t_bytes).hexdigest()
             t_key = f"tenders/{flagship_tender_id}/tender_gem_2026_B_4521089.pdf"
-            if not storage.file_exists(t_key):
-                t_storage_uri = storage.store_file(t_bytes, t_key)
-            else:
-                t_storage_uri = t_key.replace("\\", "/").lstrip("/")
+            if storage.file_exists(t_key):
+                storage.delete_file(t_key)
+            t_storage_uri = storage.store_file(t_bytes, t_key)
             existing_tdoc = db.query(Document).filter(Document.id == tender_doc_id).first()
             if not existing_tdoc:
                 tdoc = Document(
@@ -640,6 +639,7 @@ async def _execute_demo_seed(
     rag_ingest_status = "NOT_ATTEMPTED"
     try:
         from app.services.rag_adapter import RAGServiceAdapter
+        from app.schemas.canonical import RAGQueryRequest
         rag = RAGServiceAdapter()
         ingest_result = await rag.ingest_document(
             document_id="doc_tender_gem_2026_01",
@@ -650,14 +650,25 @@ async def _execute_demo_seed(
             clause=None,
             security_level="INTERNAL",
         )
-        rag_chunks_indexed = ingest_result.get("chunks_indexed", 0)
-        rag_ingest_status = "COMPLETED" if ingest_result.get("success") else f"FAILED:{ingest_result.get('error_code', 'UNKNOWN')}"
+        if ingest_result.get("success") and ingest_result.get("chunks_indexed", 0) > 0:
+            rag_chunks_indexed = ingest_result["chunks_indexed"]
+            rag_ingest_status = "COMPLETED"
+        else:
+            # Check if pgvector already has indexed chunks for this flagship tender
+            existing_check = await rag.retrieve(RAGQueryRequest(query="EMD", tender_id=flagship_tender_id, top_k=5))
+            if existing_check and existing_check.results and any("doc_tender_gem_2026_01" in (r.entity_id or "") for r in existing_check.results):
+                rag_chunks_indexed = len(existing_check.results)
+                rag_ingest_status = "COMPLETED"
+                logger.info(f"Demo RAG verified: {rag_chunks_indexed} existing chunks in pgvector")
+            else:
+                rag_chunks_indexed = 0
+                rag_ingest_status = f"FAILED:{ingest_result.get('error_code', 'UNKNOWN')}"
         logger.info(
             f"Demo RAG ingest: status={rag_ingest_status} chunks={rag_chunks_indexed} doc=doc_tender_gem_2026_01"
         )
     except Exception as rag_exc:
         rag_ingest_status = f"ERROR:{rag_exc}"
-        logger.warning(f"Demo RAG ingest failed (non-fatal): {rag_exc}")
+        logger.warning(f"Demo RAG ingest failed: {rag_exc}")
 
     AuditLogger.log(
         db,
