@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { 
@@ -63,8 +63,17 @@ export default function TenderDetailPage() {
   const [bidders, setBidders] = useState<BidderRead[]>([]);
   const [requirements, setRequirements] = useState<TenderRequirementRead[]>([]);
   const [activeTab, setActiveTab] = useState<"bidders" | "requirements" | "intelligence">("bidders");
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const hasLoadedInitialTenderRef = useRef(false);
+  const terminalRefreshPerformedRef = useRef<string | null>(null);
 
   // Modals & Drawers
   const [showAddReq, setShowAddReq] = useState(false);
@@ -81,13 +90,19 @@ export default function TenderDetailPage() {
   const [bidderSubmitting, setBidderSubmitting] = useState(false);
   const [bidderError, setBidderError] = useState<string | null>(null);
 
-  const loadTenderData = useCallback(async () => {
+  const loadTenderData = useCallback(async (options?: { silent?: boolean }) => {
     if (!id) return;
-    setLoading(true);
+    const isInitial = !hasLoadedInitialTenderRef.current;
+    if (isInitial) {
+      setInitialLoading(true);
+    } else if (!options?.silent) {
+      setRefreshing(true);
+    }
     setError(null);
 
     if (!isAuthenticated && !isDemoPreview) {
-      setLoading(false);
+      setInitialLoading(false);
+      setRefreshing(false);
       return;
     }
 
@@ -111,11 +126,13 @@ export default function TenderDetailPage() {
       setTender(tData);
       setBidders(bData);
       setRequirements(deduplicateRequirements(rData));
+      hasLoadedInitialTenderRef.current = true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load tender details from backend.";
       setError(msg);
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
+      setRefreshing(false);
     }
   }, [id, isDemoPreview, isAuthenticated]);
 
@@ -143,9 +160,10 @@ export default function TenderDetailPage() {
     try {
       const res = await api.extractRequirements(id);
       if (res.id) {
+        terminalRefreshPerformedRef.current = null;
         setActiveJobId(res.id);
       } else {
-        await loadTenderData();
+        await loadTenderData({ silent: true });
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Requirement extraction trigger failed.");
@@ -201,16 +219,14 @@ export default function TenderDetailPage() {
     }
   };
 
-  if (!isAuthenticated && !isDemoPreview) {
-    return (
-      <SessionRequired
-        title="Session Required"
-        description="To inspect this procurement tender and execute live deterministic evaluations, connect an authorized Bearer token or explore in the Demo Workspace."
-      />
-    );
-  }
+  const handleJobComplete = useCallback(() => {
+    if (activeJobId && terminalRefreshPerformedRef.current !== activeJobId) {
+      terminalRefreshPerformedRef.current = activeJobId;
+      loadTenderData({ silent: true });
+    }
+  }, [activeJobId, loadTenderData]);
 
-  if (loading) {
+  if (!mounted || (initialLoading && !tender)) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="flex flex-col items-center gap-3">
@@ -218,6 +234,15 @@ export default function TenderDetailPage() {
           <p className="text-zinc-400 text-sm">Retrieving authoritative tender state...</p>
         </div>
       </div>
+    );
+  }
+
+  if (!isAuthenticated && !isDemoPreview) {
+    return (
+      <SessionRequired
+        title="Session Required"
+        description="To inspect this procurement tender and execute live deterministic evaluations, connect an authorized Bearer token or explore in the Demo Workspace."
+      />
     );
   }
 
@@ -231,7 +256,7 @@ export default function TenderDetailPage() {
           </div>
           <p className="text-sm text-zinc-400 mb-4">{error}</p>
           <div className="flex gap-3">
-            <button onClick={loadTenderData} className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-sm font-medium">
+            <button onClick={() => loadTenderData()} className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-sm font-medium">
               Retry Query
             </button>
             <Link href="/workspace/tenders" className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium">
@@ -255,6 +280,11 @@ export default function TenderDetailPage() {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-zinc-100">{tender?.title || "Tender Detail"}</h1>
               {tender && getStatusBadge(tender.status)}
+              {refreshing && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 animate-pulse">
+                  <RefreshCw className="w-3 h-3 animate-spin" /> Syncing pipeline state...
+                </span>
+              )}
             </div>
             <p className="text-sm text-zinc-400 mt-1">
               Ref: <span className="font-mono text-zinc-300">{tender?.tender_number}</span> • Authority: <span className="text-zinc-300">{tender?.authority || "Unspecified"}</span>
@@ -591,7 +621,7 @@ export default function TenderDetailPage() {
           tenderId={id}
           isOpen={showAddReq}
           onClose={() => setShowAddReq(false)}
-          onAdded={loadTenderData}
+          onAdded={() => loadTenderData({ silent: true })}
         />
       )}
 
@@ -602,9 +632,10 @@ export default function TenderDetailPage() {
           isOpen={!!activeJobId}
           onClose={() => {
             setActiveJobId(null);
-            loadTenderData();
+            terminalRefreshPerformedRef.current = null;
+            loadTenderData({ silent: true });
           }}
-          onComplete={loadTenderData}
+          onComplete={handleJobComplete}
         />
       )}
     </div>

@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { X, Loader2, Terminal } from 'lucide-react';
+import React, { useRef, useEffect, useCallback } from 'react';
+import { X, Loader2, Terminal, AlertCircle } from 'lucide-react';
 import type { JobEventRead, JobRead, JobStage } from '@/types/api';
 import { useJobStream } from '@/hooks/useJobStream';
 
@@ -47,11 +47,18 @@ export const JobProgressDrawer: React.FC<JobProgressDrawerProps> = ({
   title = 'Autonomous Pipeline Execution',
   onComplete,
 }) => {
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  });
+
+  const handleCompleted = useCallback(() => {
+    onCompleteRef.current?.();
+  }, []);
+
   const stream = useJobStream({
-    jobId: jobId ?? null,
-    onCompleted: () => {
-      onComplete?.();
-    },
+    jobId: isOpen && jobId ? jobId : null,
+    onCompleted: handleCompleted,
   });
 
   const job = propJob ?? stream.job;
@@ -62,8 +69,8 @@ export const JobProgressDrawer: React.FC<JobProgressDrawerProps> = ({
   const currentStage = job?.current_stage ?? stream.currentStage ?? 'UPLOAD';
   const isFailed = job?.status === 'FAILED' || stream.isFailed;
   const isCompleted = job?.status === 'COMPLETED' || stream.isCompleted;
-  const isReviewRequired = job?.status === 'REVIEW_REQUIRED' || stream.isReviewRequired;
-  const isTerminal = isCompleted || isFailed || isReviewRequired;
+  const isReviewRequired = stream.isReviewRequired || currentStage === 'HUMAN_REVIEW_REQUIRED';
+  const isTerminal = isCompleted || isFailed;
 
   const stageIdx = STAGES.findIndex((st) => st.key === currentStage);
   const activeStageWeight = stageIdx >= 0 ? STAGES[stageIdx].weight : 15;
@@ -193,6 +200,19 @@ export const JobProgressDrawer: React.FC<JobProgressDrawerProps> = ({
             })}
           </div>
         </div>
+
+        {/* Failure Error Banner */}
+        {isFailed && (job?.error_message || stream.error) && (
+          <div className="mx-5 my-3 p-3.5 rounded-lg bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 text-rose-400 mt-0.5 flex-shrink-0" />
+            <div className="space-y-1">
+              <span className="font-semibold text-rose-200">Execution Error ({currentStage})</span>
+              <p className="font-mono text-[11px] text-rose-300 break-words leading-relaxed">
+                {job?.error_message || stream.error}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Per-Document Progress Section */}
         {(() => {

@@ -5,12 +5,11 @@ import { apiClient, getApiBaseUrl, getAuthToken } from '@/services/api';
 import type { JobEventRead, JobRead, JobStage, JobStatus } from '@/types/api';
 
 /**
- * Job statuses from which a job never advances. REVIEW_REQUIRED is terminal —
- * the backend workflow sets it whenever an outcome needs a human, and treating
- * it as non-terminal left the drawer spinning and polling forever.
- * Mirrors TERMINAL_JOB_STATUSES in services/api/app/schemas/canonical.py.
+ * Canonical ProcessingJob terminal lifecycle statuses.
+ * Expected: QUEUED -> RUNNING -> COMPLETED | FAILED.
+ * REVIEW_REQUIRED is a compliance outcome / workflow stage, NOT a ProcessingJob status.
  */
-const TERMINAL_JOB_STATUSES: readonly JobStatus[] = ['COMPLETED', 'FAILED', 'REVIEW_REQUIRED'];
+const TERMINAL_JOB_STATUSES: readonly JobStatus[] = ['COMPLETED', 'FAILED'];
 
 function isTerminalStatus(status: string | null | undefined): boolean {
   return !!status && (TERMINAL_JOB_STATUSES as readonly string[]).includes(status);
@@ -36,7 +35,15 @@ export function useJobStream({
 
   const lastSeqRef = useRef<number>(0);
   const isTerminalRef = useRef(false);
+  const terminalFiredRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const onCompletedRef = useRef(onCompleted);
+  const onFailedRef = useRef(onFailed);
+  useEffect(() => {
+    onCompletedRef.current = onCompleted;
+    onFailedRef.current = onFailed;
+  });
 
   const checkJobStatus = useCallback(
     async (id: string) => {
@@ -47,10 +54,13 @@ export function useJobStream({
         if (isTerminalStatus(currentJob.status)) {
           isTerminalRef.current = true;
           setIsStreaming(false);
-          if (currentJob.status === 'FAILED') {
-            onFailed?.(currentJob.error_message || 'Job execution failed');
-          } else {
-            onCompleted?.(currentJob);
+          if (terminalFiredRef.current !== id) {
+            terminalFiredRef.current = id;
+            if (currentJob.status === 'FAILED') {
+              onFailedRef.current?.(currentJob.error_message || 'Job execution failed');
+            } else {
+              onCompletedRef.current?.(currentJob);
+            }
           }
         }
       } catch (err: unknown) {
@@ -58,7 +68,7 @@ export function useJobStream({
         setError(msg);
       }
     },
-    [onCompleted, onFailed]
+    []
   );
 
   useEffect(() => {
@@ -67,14 +77,15 @@ export function useJobStream({
       setEvents([]);
       setIsStreaming(false);
       isTerminalRef.current = false;
+      terminalFiredRef.current = null;
       lastSeqRef.current = 0;
       return;
     }
 
     isTerminalRef.current = false;
+    terminalFiredRef.current = null;
     setIsStreaming(true);
     setError(null);
-
 
     // Initial check for real backend job
     checkJobStatus(jobId);
@@ -85,6 +96,8 @@ export function useJobStream({
     }
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
+
+    let intervalId: NodeJS.Timeout | null = null;
 
     // Start fetch-based authenticated SSE streaming
     async function startStream() {
@@ -116,7 +129,7 @@ export function useJobStream({
         const decoder = new TextDecoder();
         let buffer = '';
 
-        while (!isTerminalRef.current) {
+        while (!isTerminalRef.current && !abortController.signal.aborted) {
           const { value, done } = await reader.read();
           if (done) break;
 
@@ -145,7 +158,9 @@ export function useJobStream({
                     isTerminalRef.current = true;
                     setIsStreaming(false);
                     abortController.abort();
+                    if (intervalId) clearInterval(intervalId);
                     checkJobStatus(jobId!);
+                    break;
                   }
                 }
               } catch {
@@ -164,17 +179,19 @@ export function useJobStream({
     startStream();
 
     // Polling fallback ticker
-    const interval = setInterval(() => {
+    intervalId = setInterval(() => {
       if (!isTerminalRef.current) {
         checkJobStatus(jobId);
+      } else if (intervalId) {
+        clearInterval(intervalId);
       }
     }, pollingFallbackIntervalMs);
 
     return () => {
       abortController.abort();
-      clearInterval(interval);
+      if (intervalId) clearInterval(intervalId);
     };
-  }, [jobId, checkJobStatus, pollingFallbackIntervalMs, onCompleted, onFailed]);
+  }, [jobId, checkJobStatus, pollingFallbackIntervalMs]);
 
   const currentStage: JobStage =
     job?.current_stage ?? (events.length > 0 ? events[events.length - 1].stage : 'UPLOAD');
@@ -188,7 +205,7 @@ export function useJobStream({
     currentStage,
     isCompleted: job?.status === 'COMPLETED',
     isFailed: job?.status === 'FAILED',
-    isReviewRequired: job?.status === 'REVIEW_REQUIRED',
+    isReviewRequired: currentStage === 'HUMAN_REVIEW_REQUIRED',
     isTerminal: isTerminalStatus(job?.status),
   };
 }

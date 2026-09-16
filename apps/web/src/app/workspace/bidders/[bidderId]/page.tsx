@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { 
@@ -34,8 +34,17 @@ export default function BidderDetailPage() {
   const [matrix, setMatrix] = useState<ComplianceMatrixRow[]>([]);
   const [documents, setDocuments] = useState<BidderDocumentItem[]>([]);
   const [complianceStale, setComplianceStale] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const hasLoadedInitialBidderRef = useRef(false);
+  const terminalRefreshPerformedRef = useRef<string | null>(null);
 
   const querySuffix = isDemoPreview ? '?mode=demo' : '';
 
@@ -55,13 +64,19 @@ export default function BidderDetailPage() {
   const [mismatchModalOpen, setMismatchModalOpen] = useState(false);
   const [selectedDocForMismatch, setSelectedDocForMismatch] = useState<BidderDocumentItem | null>(null);
 
-  const loadBidderData = useCallback(async () => {
+  const loadBidderData = useCallback(async (options?: { silent?: boolean }) => {
     if (!bidderId) return;
-    setLoading(true);
+    const isInitial = !hasLoadedInitialBidderRef.current;
+    if (isInitial) {
+      setInitialLoading(true);
+    } else if (!options?.silent) {
+      setRefreshing(true);
+    }
     setError(null);
 
     if (!isAuthenticated && !isDemoPreview) {
-      setLoading(false);
+      setInitialLoading(false);
+      setRefreshing(false);
       return;
     }
 
@@ -107,11 +122,13 @@ export default function BidderDetailPage() {
 
       setDocuments(authenticDocs);
       setComplianceStale(false);
+      hasLoadedInitialBidderRef.current = true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load bidder records.";
       setError(msg);
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
+      setRefreshing(false);
     }
   }, [bidderId, isDemoPreview, isAuthenticated]);
 
@@ -135,9 +152,10 @@ export default function BidderDetailPage() {
     try {
       const res = await api.runVerification(bidderId);
       if (res.id) {
+        terminalRefreshPerformedRef.current = null;
         setActiveJobId(res.id);
       } else {
-        await loadBidderData();
+        await loadBidderData({ silent: true });
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to trigger statutory verification.");
@@ -154,9 +172,10 @@ export default function BidderDetailPage() {
     try {
       const res = await api.runCompliance(bidderId);
       if (res.id) {
+        terminalRefreshPerformedRef.current = null;
         setActiveJobId(res.id);
       } else {
-        await loadBidderData();
+        await loadBidderData({ silent: true });
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to trigger compliance evaluation.");
@@ -164,6 +183,13 @@ export default function BidderDetailPage() {
       setTriggeringCompliance(false);
     }
   };
+
+  const handleJobComplete = useCallback(() => {
+    if (activeJobId && terminalRefreshPerformedRef.current !== activeJobId) {
+      terminalRefreshPerformedRef.current = activeJobId;
+      loadBidderData({ silent: true });
+    }
+  }, [activeJobId, loadBidderData]);
 
   const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -179,7 +205,7 @@ export default function BidderDetailPage() {
       await api.uploadBidderDocument(bidderId, file, 'FINANCIAL_STATEMENT');
       setUploadStage('PROCESSED');
       setHasUploadedOnce(true);
-      await loadBidderData();
+      await loadBidderData({ silent: true });
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : 'Failed to upload document.');
     } finally {
@@ -222,16 +248,7 @@ export default function BidderDetailPage() {
     }
   };
 
-  if (!isAuthenticated && !isDemoPreview) {
-    return (
-      <SessionRequired
-        title="Session Required"
-        description="To inspect this bidder and run deterministic qualification rules, connect an authorized Bearer token or explore in the Demo Workspace."
-      />
-    );
-  }
-
-  if (loading) {
+  if (!mounted || (initialLoading && !bidder)) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="flex flex-col items-center gap-3">
@@ -239,6 +256,15 @@ export default function BidderDetailPage() {
           <p className="text-zinc-400 text-sm">Loading bidder evaluation record...</p>
         </div>
       </div>
+    );
+  }
+
+  if (!isAuthenticated && !isDemoPreview) {
+    return (
+      <SessionRequired
+        title="Session Required"
+        description="To inspect this bidder and run deterministic qualification rules, connect an authorized Bearer token or explore in the Demo Workspace."
+      />
     );
   }
 
@@ -252,7 +278,7 @@ export default function BidderDetailPage() {
           </div>
           <p className="text-sm text-zinc-400 mb-4">{error}</p>
           <div className="flex gap-3">
-            <button onClick={loadBidderData} className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-sm font-medium">
+            <button onClick={() => loadBidderData()} className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-sm font-medium">
               Retry Load
             </button>
             <Link href="/workspace/tenders" className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium">
@@ -276,6 +302,11 @@ export default function BidderDetailPage() {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-zinc-100">{bidder?.bidder_name}</h1>
               {bidder && getStatusBadge(bidder.status)}
+              {refreshing && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 animate-pulse">
+                  <RefreshCw className="w-3 h-3 animate-spin" /> Syncing bidder state...
+                </span>
+              )}
             </div>
             <p className="text-sm text-zinc-400 mt-1">
               Registered ID: <span className="font-mono text-zinc-300">{bidderId}</span>
@@ -622,9 +653,10 @@ export default function BidderDetailPage() {
           isOpen={!!activeJobId}
           onClose={() => {
             setActiveJobId(null);
-            loadBidderData();
+            terminalRefreshPerformedRef.current = null;
+            loadBidderData({ silent: true });
           }}
-          onComplete={loadBidderData}
+          onComplete={handleJobComplete}
         />
       )}
     </div>
