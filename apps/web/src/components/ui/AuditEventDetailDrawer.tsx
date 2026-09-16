@@ -22,6 +22,48 @@ import {
 } from 'lucide-react';
 import type { AuditEventRead } from '@/services/types';
 
+const SENSITIVE_KEY_PATTERNS = [
+  'token',
+  'access_token',
+  'authorization',
+  'password',
+  'secret',
+  'api_key',
+  'apikey',
+  'database_url',
+  'service_role_key',
+  'jwt',
+  'bearer',
+  'client_secret',
+  'refresh_token',
+];
+
+export function isSensitiveKey(key: string): boolean {
+  const lower = key.toLowerCase();
+  return SENSITIVE_KEY_PATTERNS.some((pattern) => lower.includes(pattern));
+}
+
+export function redactSensitiveData<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== 'object') return obj;
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) => redactSensitiveData(item)) as unknown as T;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (isSensitiveKey(k) && v !== null && v !== undefined) {
+      result[k] = '[REDACTED]';
+    } else if (typeof v === 'object' && v !== null) {
+      result[k] = redactSensitiveData(v);
+    } else {
+      result[k] = v;
+    }
+  }
+  return result as T;
+}
+
 interface AuditEventDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -87,26 +129,24 @@ export const AuditEventDetailDrawer: React.FC<AuditEventDetailDrawerProps> = ({
   };
 
   const copyPayload = () => {
-    const jsonStr = JSON.stringify(
-      {
-        id: event.id,
-        timestamp: event.timestamp,
-        mode: event.mode,
-        event_category: event.event_category,
-        pipeline_stage: stageDisplay,
-        job_id: event.job_id,
-        status: event.status,
-        progress: event.progress,
-        action: event.action,
-        entity_type: event.entity_type,
-        entity_id: event.entity_id,
-        actor: event.actor,
-        target_url: event.target_url,
-        payload: payload,
-      },
-      null,
-      2
-    );
+    const rawData = {
+      id: event.id,
+      timestamp: event.timestamp,
+      mode: event.mode,
+      event_category: event.event_category,
+      pipeline_stage: stageDisplay,
+      job_id: event.job_id,
+      status: event.status,
+      progress: event.progress,
+      action: event.action,
+      entity_type: event.entity_type,
+      entity_id: event.entity_id,
+      actor: event.actor,
+      target_url: event.target_url,
+      ...payload,
+    };
+    const sanitized = redactSensitiveData(rawData);
+    const jsonStr = JSON.stringify(sanitized, null, 2);
     navigator.clipboard.writeText(jsonStr);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -178,6 +218,13 @@ export const AuditEventDetailDrawer: React.FC<AuditEventDetailDrawerProps> = ({
               {event.event_category || '—'}
             </span>
           </div>
+
+          {/* Synthetic Badge */}
+          {isDemo && (
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-amber-950/80 text-amber-300 border border-amber-800/60">
+              DEMO_SYNTHETIC
+            </span>
+          )}
 
           {/* Stage */}
           <div className="flex items-center gap-1">
@@ -257,9 +304,14 @@ export const AuditEventDetailDrawer: React.FC<AuditEventDetailDrawerProps> = ({
               </div>
               <div>
                 <span className="text-zinc-500 text-[11px] block">Storage Source</span>
-                <span className="text-zinc-300 break-all">
-                  {event.source || (isDemo ? 'DEMO_STORE / SYNTHETIC' : 'BACKEND / DATABASE')}
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-zinc-300 font-medium">BACKEND / DATABASE</span>
+                  {isDemo && (
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-amber-950/80 text-amber-300 border border-amber-800/60">
+                      DEMO_SYNTHETIC
+                    </span>
+                  )}
+                </div>
               </div>
               {Boolean(event.tender_id || payload.tender_id) && (
                 <div>
@@ -452,10 +504,13 @@ export const AuditEventDetailDrawer: React.FC<AuditEventDetailDrawerProps> = ({
                 <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800/80 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
                   {Object.entries(payload).map(([k, v]) => {
                     if (k === 'message' || typeof v === 'object') return null;
+                    const isSecret = isSensitiveKey(k);
                     return (
                       <div key={k}>
                         <span className="text-zinc-500 text-[11px] block">{k}</span>
-                        <span className="text-zinc-200 font-medium break-all">{String(v ?? '—')}</span>
+                        <span className="text-zinc-200 font-medium break-all">
+                          {isSecret ? '[REDACTED]' : String(v ?? '—')}
+                        </span>
                       </div>
                     );
                   })}
@@ -483,7 +538,7 @@ export const AuditEventDetailDrawer: React.FC<AuditEventDetailDrawerProps> = ({
             <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 max-h-72 overflow-y-auto overflow-x-hidden">
               <pre className="font-mono text-[11px] text-zinc-300 whitespace-pre-wrap break-all leading-relaxed">
                 {JSON.stringify(
-                  {
+                  redactSensitiveData({
                     id: event.id,
                     timestamp: event.timestamp,
                     mode: event.mode,
@@ -498,7 +553,7 @@ export const AuditEventDetailDrawer: React.FC<AuditEventDetailDrawerProps> = ({
                     actor: event.actor,
                     target_url: event.target_url,
                     ...payload,
-                  },
+                  }),
                   null,
                   2
                 )}

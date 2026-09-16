@@ -109,7 +109,7 @@ export default function AuditPage() {
             ? 'bg-amber-950/60 text-amber-300 border-amber-800/60'
             : 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
         }`}
-        title={`Source: ${source || (isDemo ? 'DEMO_STORE / SYNTHETIC' : 'BACKEND / DATABASE')}`}
+        title={`Source: ${source || 'BACKEND / DATABASE'}`}
       >
         {isDemo ? <Sparkles className="w-2.5 h-2.5 text-amber-400" /> : <Database className="w-2.5 h-2.5 text-emerald-400" />}
         {isDemo ? 'DEMO' : 'AUTHENTIC'}
