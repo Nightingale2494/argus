@@ -494,3 +494,116 @@ def test_non_exists_operator_on_structured_verified_value_fails_closed():
     res = ComplianceEngine.evaluate(req, [fact], [ver])
     assert res.status == ComplianceStatus.REVIEW_REQUIRED
     assert res.reason_code == "AMBIGUOUS_VERIFIED_VALUE"
+
+
+def test_gst_pass_does_not_imply_gem_registration_pass():
+    req_gst = make_requirement(OperatorEnum.EXISTS, True, field="tax.gstin", mandatory=True)
+    req_gem = make_requirement(OperatorEnum.EXISTS, True, field="gem.seller_id", mandatory=True)
+
+    gst_fact = make_fact("29ABCDE5678K1Z1", field="tax.gstin", fact_id="FACT-GST-1")
+    gst_ver = make_verification(
+        VerificationStatus.VERIFIED,
+        verified_value={"status": "ACTIVE", "verified_entity": "Surya Tech"},
+        field="tax.gstin",
+        ver_id="VER-GST-1",
+        claimed_value="29ABCDE5678K1Z1",
+    )
+
+    eval_gst = ComplianceEngine.evaluate(req_gst, [gst_fact], [gst_ver])
+    eval_gem = ComplianceEngine.evaluate(req_gem, [gst_fact], [gst_ver])
+
+    assert eval_gst.status == ComplianceStatus.PASS
+    assert eval_gst.reason_code == "EVIDENCE_EXISTS"
+
+    assert eval_gem.status == ComplianceStatus.UNKNOWN
+    assert eval_gem.reason_code == "MISSING_EVIDENCE"
+    assert eval_gem.status != ComplianceStatus.PASS
+
+
+def test_two_requirements_from_same_source_clause_evaluated_independently():
+    req_gst = make_requirement(OperatorEnum.EXISTS, True, field="tax.gstin", mandatory=True)
+    req_gem = make_requirement(OperatorEnum.EXISTS, True, field="gem.seller_id", mandatory=True)
+
+    # Case A: Bidder only has GST evidence
+    gst_fact = make_fact("29ABCDE5678K1Z1", field="tax.gstin")
+    gst_ver = make_verification(
+        VerificationStatus.VERIFIED,
+        verified_value={"status": "ACTIVE"},
+        field="tax.gstin",
+        claimed_value="29ABCDE5678K1Z1",
+    )
+
+    res_gst_a = ComplianceEngine.evaluate(req_gst, [gst_fact], [gst_ver])
+    res_gem_a = ComplianceEngine.evaluate(req_gem, [gst_fact], [gst_ver])
+    assert res_gst_a.status == ComplianceStatus.PASS
+    assert res_gem_a.status == ComplianceStatus.UNKNOWN
+
+    # Case B: Bidder provides both GST and GeM seller evidence
+    gem_fact = make_fact("GEM-SELLER-998811", field="gem.seller_id")
+    all_facts = [gst_fact, gem_fact]
+    all_ver = [gst_ver]
+
+    res_gst_b = ComplianceEngine.evaluate(req_gst, all_facts, all_ver)
+    res_gem_b = ComplianceEngine.evaluate(req_gem, all_facts, all_ver)
+    assert res_gst_b.status == ComplianceStatus.PASS
+    assert res_gem_b.status == ComplianceStatus.PASS
+    assert res_gem_b.reason_code == "EVIDENCE_EXISTS"
+
+
+def test_overall_report_preserves_both_evaluations():
+    req_gst = make_requirement(OperatorEnum.EXISTS, True, field="tax.gstin", mandatory=True)
+    setattr(req_gst, "clause", "2.1(a)")
+    req_gem = make_requirement(OperatorEnum.EXISTS, True, field="gem.seller_id", mandatory=True)
+    setattr(req_gem, "clause", "2.1(b)")
+
+    gst_fact = make_fact("29ABCDE5678K1Z1", field="tax.gstin")
+    gst_ver = make_verification(
+        VerificationStatus.VERIFIED,
+        verified_value={"status": "ACTIVE"},
+        field="tax.gstin",
+        claimed_value="29ABCDE5678K1Z1",
+    )
+
+    eval_gst = ComplianceEngine.evaluate(req_gst, [gst_fact], [gst_ver])
+    eval_gem = ComplianceEngine.evaluate(req_gem, [gst_fact], [gst_ver])
+
+    evaluations = [eval_gst, eval_gem]
+    assert len(evaluations) == 2
+    assert evaluations[0].requirement_id == req_gst.id
+    assert evaluations[0].status == ComplianceStatus.PASS
+    assert evaluations[1].requirement_id == req_gem.id
+    assert evaluations[1].status == ComplianceStatus.UNKNOWN
+
+
+def test_missing_gem_evidence_cannot_silently_become_pass():
+    req_gem = make_requirement(OperatorEnum.EXISTS, True, field="gem.seller_id", mandatory=True)
+    irrelevant_fact = make_fact("random value", field="custom.irrelevant")
+
+    res = ComplianceEngine.evaluate(req_gem, [irrelevant_fact], [])
+    assert res.status == ComplianceStatus.UNKNOWN
+    assert res.reason_code == "MISSING_EVIDENCE"
+    assert res.status != ComplianceStatus.PASS
+
+
+def test_existing_gst_and_turnover_fixes_remain_pass():
+    # GST
+    req_gst = make_requirement(OperatorEnum.EXISTS, True, field="tax.gstin", mandatory=True)
+    fact_gst = make_fact("29ABCDE5678K1Z1", field="tax.gstin")
+    ver_gst = make_verification(
+        VerificationStatus.VERIFIED,
+        verified_value={"status": "ACTIVE", "verified_entity": "Surya Tech"},
+        field="tax.gstin",
+        claimed_value="29ABCDE5678K1Z1",
+    )
+    res_gst = ComplianceEngine.evaluate(req_gst, [fact_gst], [ver_gst])
+    assert res_gst.status == ComplianceStatus.PASS
+    assert res_gst.reason_code == "EVIDENCE_EXISTS"
+
+    # Turnover
+    req_turnover = make_requirement(OperatorEnum.GTE, 85000000, field="financial.average_annual_turnover")
+    fact_turnover_a = make_fact("Rs. 11.6 crore (3-year average)", field="financial.average_annual_turnover")
+    fact_turnover_b = make_fact(116000000, field="financial.average_annual_turnover")
+    res_turnover = ComplianceEngine.evaluate(req_turnover, [fact_turnover_a, fact_turnover_b], [])
+    assert res_turnover.status == ComplianceStatus.PASS
+    assert res_turnover.reason_code == "GREATER_THAN_OR_EQUAL"
+
