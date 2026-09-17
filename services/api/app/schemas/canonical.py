@@ -37,10 +37,31 @@ class AuthenticatedPrincipal(BaseModel):
     """Lightweight authenticated principal representation derived from validated JWT claims."""
     user_id: str
     name: str | None = None
-    role: UserRole
+    full_name: str | None = None
+    role: UserRole = UserRole.PROCUREMENT_OFFICER
     email: str | None = None
     is_demo_operator: bool = False
     evaluation_mode: bool = False
+    is_active: bool = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_aliases(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            fn = data.get("full_name") or data.get("name")
+            data["full_name"] = fn
+            data["name"] = fn
+            if "id" in data and "user_id" not in data:
+                data["user_id"] = data["id"]
+        elif hasattr(data, "name") or hasattr(data, "full_name"):
+            fn = getattr(data, "full_name", None) or getattr(data, "name", None)
+            setattr(data, "full_name", fn)
+            setattr(data, "name", fn)
+        return data
+
+    @property
+    def id(self) -> str:
+        return self.user_id
 
 
 
@@ -619,7 +640,80 @@ class HumanDecisionRead(BaseModel):
     remarks: str | None = None
     officer_id: str
     officer_name: str
+    officer_email: str | None = None
     decided_at: datetime
+    actor_user_id: str | None = None
+    actor_name: str | None = None
+    actor_email: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_actor_fields(cls, data: Any) -> Any:
+        if hasattr(data, "officer_id"):
+            oid = getattr(data, "officer_id")
+            oname = getattr(data, "officer_name")
+            oemail = getattr(data, "officer_email", None)
+            return {
+                "id": getattr(data, "id"),
+                "bidder_id": getattr(data, "bidder_id"),
+                "status": getattr(data, "status"),
+                "reason_code": getattr(data, "reason_code"),
+                "remarks": getattr(data, "remarks"),
+                "officer_id": oid,
+                "officer_name": oname,
+                "officer_email": oemail,
+                "decided_at": getattr(data, "decided_at"),
+                "actor_user_id": oid,
+                "actor_name": oname,
+                "actor_email": oemail,
+            }
+        elif isinstance(data, dict):
+            data.setdefault("actor_user_id", data.get("officer_id"))
+            data.setdefault("actor_name", data.get("officer_name"))
+            data.setdefault("actor_email", data.get("officer_email"))
+        return data
+
+
+class AuditEventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    entity_type: str
+    entity_id: str
+    action: str
+    actor_id: str
+    actor_role: str
+    actor_user_id: str | None = None
+    actor_name: str | None = None
+    actor_email: str | None = None
+    payload_json: dict[str, Any] = Field(default_factory=dict)
+    timestamp: datetime
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_actor_fields(cls, data: Any) -> Any:
+        if hasattr(data, "payload_json"):
+            payload = getattr(data, "payload_json") or {}
+            actor_id = getattr(data, "actor_id", None)
+            actor_role = getattr(data, "actor_role", None)
+            return {
+                "id": getattr(data, "id"),
+                "entity_type": getattr(data, "entity_type"),
+                "entity_id": getattr(data, "entity_id"),
+                "action": getattr(data, "action"),
+                "actor_id": actor_id,
+                "actor_role": actor_role,
+                "actor_user_id": payload.get("actor_user_id") or actor_id,
+                "actor_name": payload.get("actor_name"),
+                "actor_email": payload.get("actor_email"),
+                "payload_json": payload,
+                "timestamp": getattr(data, "timestamp"),
+            }
+        elif isinstance(data, dict):
+            payload = data.get("payload_json") or {}
+            data.setdefault("actor_user_id", payload.get("actor_user_id") or data.get("actor_id"))
+            data.setdefault("actor_name", payload.get("actor_name"))
+            data.setdefault("actor_email", payload.get("actor_email"))
+        return data
 
 
 class ComplianceRunRead(BaseModel):

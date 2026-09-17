@@ -82,11 +82,14 @@ def decode_access_token(token: str) -> AuthenticatedPrincipal:
     except (ValueError, KeyError, TypeError) as e:
         raise ValueError(f"Invalid token claim: 'role' '{role_val}' is not a valid UserRole.") from e
 
+    name_val = payload.get("name") or payload.get("full_name")
     return AuthenticatedPrincipal(
         user_id=sub,
-        name=payload.get("name"),
+        name=name_val,
+        full_name=name_val,
         role=user_role,
         email=payload.get("email"),
         is_demo_operator=bool(payload.get("is_demo_operator", False)),
         evaluation_mode=bool(payload.get("evaluation_mode", False)),
+        is_active=True,
     )

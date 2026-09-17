@@ -88,8 +88,10 @@ export default function AuditPage() {
       const actionMatch = ev.action?.toLowerCase().includes(q);
       const entityMatch = ev.entity_id?.toLowerCase().includes(q) || ev.entity_type?.toLowerCase().includes(q);
       const actorMatch = ev.actor?.toLowerCase().includes(q);
+      const actorNameMatch = ev.actor_name?.toLowerCase().includes(q);
+      const actorEmailMatch = ev.actor_email?.toLowerCase().includes(q);
       const clauseMatch = ev.clause_reference?.toLowerCase().includes(q);
-      if (!msgMatch && !stageMatch && !jobMatch && !actionMatch && !entityMatch && !actorMatch && !clauseMatch) return false;
+      if (!msgMatch && !stageMatch && !jobMatch && !actionMatch && !entityMatch && !actorMatch && !actorNameMatch && !actorEmailMatch && !clauseMatch) return false;
     }
     return true;
   });
@@ -99,7 +101,15 @@ export default function AuditPage() {
     try {
       const d = new Date(ts);
       if (isNaN(d.getTime())) return '—';
-      return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+      return (
+        d.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        }) +
+        ', ' +
+        d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+      );
     } catch {
       return '—';
     }
@@ -273,23 +283,21 @@ export default function AuditPage() {
         <div className="overflow-x-auto rounded-xl border border-zinc-800/80 bg-zinc-900/40 shadow-sm">
           <table className="w-full text-left text-sm table-fixed min-w-[1080px]">
             <colgroup>
-              <col className="w-[115px]" />
-              <col className="w-[115px]" />
-              <col className="w-[190px]" />
               <col className="w-[130px]" />
-              <col className="w-[110px]" />
-              <col className="w-[100px]" />
+              <col className="w-[160px]" />
+              <col className="w-[180px]" />
+              <col className="w-[135px]" />
+              <col className="w-[105px]" />
               <col />
             </colgroup>
             <thead>
               <tr className="border-b border-zinc-800 text-xs text-zinc-400 font-semibold bg-zinc-950/60">
                 <th className="px-3.5 py-2.5">Timestamp</th>
-                <th className="px-3.5 py-2.5">Mode</th>
-                <th className="px-3.5 py-2.5">Category / Stage</th>
-                <th className="px-3.5 py-2.5">Job ID</th>
+                <th className="px-3.5 py-2.5">Actor (WHO)</th>
+                <th className="px-3.5 py-2.5">Action (WHAT)</th>
+                <th className="px-3.5 py-2.5">Target</th>
                 <th className="px-3.5 py-2.5">Status</th>
-                <th className="px-3.5 py-2.5">Progress</th>
-                <th className="px-3.5 py-2.5">Message &amp; Action Traces</th>
+                <th className="px-3.5 py-2.5">Message &amp; Event Details</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/60">
@@ -311,53 +319,85 @@ export default function AuditPage() {
                         : 'hover:bg-zinc-800/40'
                     }`}
                   >
-                    {/* Timestamp */}
-                    <td className="px-3.5 py-2.5 font-mono text-xs text-zinc-400 whitespace-nowrap">
-                      {formatTimestamp(ev.timestamp)}
-                    </td>
-
-                    {/* Mode */}
+                    {/* Timestamp (WHEN) */}
                     <td className="px-3.5 py-2.5 whitespace-nowrap">
-                      {getModeBadge(ev.mode, ev.source)}
-                    </td>
-
-                    {/* Category / Stage */}
-                    <td className="px-3.5 py-2.5">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {getCategoryBadge(ev.event_category)}
-                        {stageDisplay && String(stageDisplay) !== '—' ? (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-800 text-zinc-300 border border-zinc-700 truncate max-w-[95px]" title={String(stageDisplay)}>
-                            {stageDisplay}
-                          </span>
-                        ) : (
-                          <span className="text-zinc-500 font-mono text-xs">N/A</span>
-                        )}
+                      <div className="font-mono text-xs text-zinc-300">
+                        {formatTimestamp(ev.timestamp)}
+                      </div>
+                      <div className="mt-1">
+                        {getModeBadge(ev.mode, ev.source)}
                       </div>
                     </td>
 
-                    {/* Job ID */}
-                    <td className="px-3.5 py-2.5 font-mono text-xs">
-                      {resolvedJobId ? (
-                        <span className="text-zinc-300 truncate max-w-[120px] inline-block font-mono" title={resolvedJobId}>
-                          {resolvedJobId}
-                        </span>
+                    {/* Actor (WHO) */}
+                    <td className="px-3.5 py-2.5">
+                      {ev.actor_name ? (
+                        <div className="min-w-0">
+                          <div className="font-medium text-xs text-zinc-200 truncate" title={ev.actor_name}>
+                            {ev.actor_name}
+                          </div>
+                          <div className="text-[10px] text-zinc-500 font-mono truncate" title={ev.actor_email || ''}>
+                            {ev.actor_email || ev.actor_user_id || '—'}
+                          </div>
+                        </div>
                       ) : (
-                        <span className="text-zinc-600 font-mono text-[11px]" title="Non-job audit event">
-                          N/A
-                        </span>
+                        <div className="text-xs font-mono text-zinc-400 truncate" title={ev.actor || ev.actor_user_id || 'SYSTEM'}>
+                          {ev.actor || ev.actor_user_id || 'SYSTEM'}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Action & Category (WHAT) */}
+                    <td className="px-3.5 py-2.5">
+                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                        {getCategoryBadge(ev.event_category)}
+                        {stageDisplay && String(stageDisplay) !== '—' && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-800 text-zinc-300 border border-zinc-700 truncate max-w-[95px]" title={String(stageDisplay)}>
+                            {stageDisplay}
+                          </span>
+                        )}
+                      </div>
+                      <div className="font-mono text-xs font-semibold text-zinc-200 truncate" title={ev.action || undefined}>
+                        {ev.action || '—'}
+                      </div>
+                    </td>
+
+                    {/* Target */}
+                    <td className="px-3.5 py-2.5 font-mono text-xs">
+                      {ev.bidder_id ? (
+                        <div className="space-y-0.5">
+                          <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-cyan-950/70 text-cyan-300 border border-cyan-800/60">BIDDER</span>
+                          <div className="text-zinc-300 truncate max-w-[125px]" title={ev.bidder_id}>
+                            {ev.bidder_id}
+                          </div>
+                        </div>
+                      ) : resolvedJobId ? (
+                        <div className="space-y-0.5">
+                          <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-blue-950/70 text-blue-300 border border-blue-800/60">JOB</span>
+                          <div className="text-zinc-300 truncate max-w-[125px]" title={resolvedJobId}>
+                            {resolvedJobId}
+                          </div>
+                        </div>
+                      ) : ev.entity_id ? (
+                        <div className="space-y-0.5">
+                          <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-zinc-800 text-zinc-400 border border-zinc-700">
+                            {ev.entity_type || 'ENTITY'}
+                          </span>
+                          <div className="text-zinc-300 truncate max-w-[125px]" title={ev.entity_id}>
+                            {ev.entity_id}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-zinc-600 font-mono text-[11px]">N/A</span>
                       )}
                     </td>
 
                     {/* Status */}
                     <td className="px-3.5 py-2.5 whitespace-nowrap">
                       <AuditStatusBadge status={resolvedStatus} />
-                    </td>
-
-                    {/* Progress */}
-                    <td className="px-3.5 py-2.5 whitespace-nowrap font-mono text-xs">
-                      {isJob && progressVal !== null ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-10 h-1.5 bg-zinc-800 rounded-full overflow-hidden flex-shrink-0">
+                      {isJob && progressVal !== null && (
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <div className="w-8 h-1 bg-zinc-800 rounded-full overflow-hidden flex-shrink-0">
                             <div
                               className={`h-full rounded-full transition-all ${
                                 progressVal === 100
@@ -369,18 +409,14 @@ export default function AuditPage() {
                               style={{ width: `${progressVal}%` }}
                             />
                           </div>
-                          <span className="text-blue-400 text-[11px] font-mono font-semibold">
+                          <span className="text-blue-400 text-[10px] font-mono font-semibold">
                             {progressVal}%
                           </span>
                         </div>
-                      ) : (
-                        <span className="text-zinc-600 font-mono text-[11px]" title="Non-job audit event">
-                          N/A
-                        </span>
                       )}
                     </td>
 
-                    {/* Message & Action Traces (Concise Preview, max 2-3 lines) */}
+                    {/* Message & Action Traces (Details) */}
                     <td className="px-3.5 py-2.5 text-xs text-zinc-300">
                       <AuditMessagePreview
                         event={ev}

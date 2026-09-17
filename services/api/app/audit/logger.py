@@ -29,12 +29,15 @@ def mask_sensitive_string(value: str) -> str:
 def sanitize_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Recursively masks sensitive fields in audit payloads."""
     sanitized = {}
-    sensitive_keys = {"gstin", "pan", "aadhaar", "account_number", "bank_account", "ssn", "secret"}
+    sensitive_keys = {
+        "gstin", "pan", "aadhaar", "account_number", "bank_account", "ssn",
+        "secret", "password", "jwt", "token", "access_token", "api_key", "client_secret"
+    }
 
     for key, val in payload.items():
         if isinstance(val, dict):
             sanitized[key] = sanitize_payload(val)
-        elif isinstance(val, str) and (key.lower() in sensitive_keys or any(k in key.lower() for k in ["gstin", "pan", "aadhaar"])):
+        elif isinstance(val, str) and (key.lower() in sensitive_keys or any(k in key.lower() for k in ["gstin", "pan", "aadhaar", "password", "token", "secret"])):
             sanitized[key] = mask_sensitive_string(val)
         else:
             sanitized[key] = val
@@ -53,10 +56,32 @@ class AuditLogger:
         actor_id: str = "SYSTEM",
         actor_role: str = "SYSTEM",
         payload: dict[str, Any] | None = None,
+        actor_name: str | None = None,
+        actor_email: str | None = None,
+        principal: Any | None = None,
     ) -> AuditEvent:
         """Adds an AuditEvent to the session without calling commit(), enabling single-transaction persistence."""
-        payload = payload or {}
-        sanitized = sanitize_payload(payload)
+        payload_data = dict(payload or {})
+
+        # If authenticated principal is provided, strictly derive actor identity from verified claims
+        if principal is not None:
+            actor_id = getattr(principal, "user_id", actor_id)
+            role_obj = getattr(principal, "role", actor_role)
+            actor_role = role_obj.value if hasattr(role_obj, "value") else str(role_obj)
+            actor_name = getattr(principal, "full_name", None) or getattr(principal, "name", None) or actor_name
+            actor_email = getattr(principal, "email", None) or actor_email
+
+        # Populate actor identity snapshot fields in payload_json
+        if actor_id:
+            payload_data["actor_user_id"] = actor_id
+        if actor_name:
+            payload_data["actor_name"] = actor_name
+        if actor_email:
+            payload_data["actor_email"] = actor_email
+        if actor_role:
+            payload_data["actor_role"] = actor_role
+
+        sanitized = sanitize_payload(payload_data)
 
         audit_entry = AuditEvent(
             action=action,
@@ -78,6 +103,9 @@ class AuditLogger:
         actor_id: str = "SYSTEM",
         actor_role: str = "SYSTEM",
         payload: dict[str, Any] | None = None,
+        actor_name: str | None = None,
+        actor_email: str | None = None,
+        principal: Any | None = None,
     ) -> AuditEvent:
         audit_entry = AuditLogger.create_entry(
             db,
@@ -87,6 +115,9 @@ class AuditLogger:
             actor_id=actor_id,
             actor_role=actor_role,
             payload=payload,
+            actor_name=actor_name,
+            actor_email=actor_email,
+            principal=principal,
         )
         db.commit()
         db.refresh(audit_entry)

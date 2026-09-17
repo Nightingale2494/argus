@@ -3,12 +3,12 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import require_roles
 from app.db.session import get_db
 from app.models.domain import AuditEvent
-from app.schemas.canonical import AuthenticatedPrincipal, UserRole
+from app.schemas.canonical import AuditEventRead, AuthenticatedPrincipal, UserRole
 
 router = APIRouter(tags=["Audit"])
 
 
-@router.get("/audit/events")
+@router.get("/audit/events", response_model=list[AuditEventRead])
 def list_audit_events(
     entity_type: str | None = Query(None, description="Filter by entity type (e.g. BIDDER, TENDER)"),
     entity_id: str | None = Query(None, description="Filter by entity ID"),

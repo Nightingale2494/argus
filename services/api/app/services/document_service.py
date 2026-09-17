@@ -111,8 +111,7 @@ class DocumentService:
                 action="TENDER_DOCUMENT_UPLOADED",
                 entity_type="DOCUMENT",
                 entity_id=doc.id,
-                actor_id=principal.user_id,
-                actor_role=principal.role.value,
+                principal=principal,
                 payload={
                     "tender_id": doc.tender_id,
                     "document_id": doc.id,
@@ -242,8 +241,7 @@ class DocumentService:
                 action="BIDDER_DOCUMENT_UPLOADED",
                 entity_type="DOCUMENT",
                 entity_id=doc.id,
-                actor_id=principal.user_id,
-                actor_role=principal.role.value,
+                principal=principal,
                 payload={
                     "bidder_id": doc.bidder_id,
                     "document_id": doc.id,

@@ -715,6 +715,32 @@ export function normalizeAuditEvent(raw: RawAuditEvent | Record<string, unknown>
     }
   }
 
+  // 9. ACTOR ATTRIBUTION RESOLUTION:
+  const actorUserId =
+    (typeof rawRecord.actor_user_id === 'string' && rawRecord.actor_user_id) ||
+    (typeof payload.actor_user_id === 'string' && payload.actor_user_id) ||
+    rawRecord.actor_id ||
+    null;
+
+  const actorName =
+    (typeof rawRecord.actor_name === 'string' && rawRecord.actor_name) ||
+    (typeof payload.actor_name === 'string' && payload.actor_name) ||
+    (typeof payload.officer_name === 'string' && payload.officer_name) ||
+    null;
+
+  const actorEmail =
+    (typeof rawRecord.actor_email === 'string' && rawRecord.actor_email) ||
+    (typeof payload.actor_email === 'string' && payload.actor_email) ||
+    (typeof payload.officer_email === 'string' && payload.officer_email) ||
+    null;
+
+  const actorRole =
+    (typeof rawRecord.actor_role === 'string' && rawRecord.actor_role) ||
+    (typeof payload.actor_role === 'string' && payload.actor_role) ||
+    null;
+
+  const actorDisplay = actorName || actorUserId || rawRecord.actor_id || rawRecord.actor_role || null;
+
   return {
     id,
     job_id: jobId,
@@ -728,7 +754,11 @@ export function normalizeAuditEvent(raw: RawAuditEvent | Record<string, unknown>
     action: actionName || null,
     entity_type: rawRecord.entity_type || null,
     entity_id: rawRecord.entity_id || null,
-    actor: rawRecord.actor_id || rawRecord.actor_role || null,
+    actor: actorDisplay,
+    actor_user_id: actorUserId,
+    actor_name: actorName,
+    actor_email: actorEmail,
+    actor_role: actorRole,
     mode: (rawRecord.mode as 'AUTHENTIC' | 'DEMO') || 'AUTHENTIC',
     source: (rawRecord.source as 'BACKEND / DATABASE' | 'DEMO_STORE / SYNTHETIC') || 'BACKEND / DATABASE',
     target_url: targetUrl,

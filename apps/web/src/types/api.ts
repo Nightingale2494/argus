@@ -7,7 +7,11 @@ import type { components } from '@/generated/schema';
 export type Schemas = components['schemas'];
 
 // Core Authentication & Principal
-export type AuthenticatedPrincipal = Schemas['AuthenticatedPrincipal'];
+export type AuthenticatedPrincipal = Schemas['AuthenticatedPrincipal'] & {
+  id?: string;
+  full_name?: string | null;
+  is_active?: boolean;
+};
 export type UserRole = Schemas['UserRole'];
 
 // Tenders & Requirements
@@ -54,9 +58,15 @@ export type RiskSummaryRead = Schemas['RiskSummaryRead'];
 
 // Human Decisions & Reports
 export type HumanDecisionCreate = Schemas['HumanDecisionCreate'];
-export type HumanDecisionRead = Schemas['HumanDecisionRead'];
+export type HumanDecisionRead = Schemas['HumanDecisionRead'] & {
+  officer_email?: string | null;
+  actor_user_id?: string | null;
+  actor_name?: string | null;
+  actor_email?: string | null;
+};
 export type HumanDecisionStatus = Schemas['HumanDecisionStatus'];
-export type ReportRead = Schemas['ReportRead'] & {
+export type ReportRead = Omit<Schemas['ReportRead'], 'human_decision'> & {
+  human_decision?: HumanDecisionRead | null;
   snapshot_hash?: string | null;
   hash_algorithm?: string | null;
   canonicalization_version?: string | null;

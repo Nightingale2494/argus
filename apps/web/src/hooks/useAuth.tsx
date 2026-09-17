@@ -163,7 +163,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/auth/dev-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentials || {}),
+        body: JSON.stringify({
+          email: credentials?.email,
+          password: credentials?.password,
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

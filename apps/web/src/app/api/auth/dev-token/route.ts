@@ -40,7 +40,7 @@ const DEFAULT_ALLOWED_ROLES: readonly SupportedRole[] = [
   'AUDITOR',
 ];
 
-const DEFAULT_ROLE: SupportedRole = 'PROCUREMENT_OFFICER';
+const _DEFAULT_ROLE: SupportedRole = 'PROCUREMENT_OFFICER';
 
 
 const ROLE_PROFILES: Record<
@@ -49,22 +49,22 @@ const ROLE_PROFILES: Record<
 > = {
   PROCUREMENT_OFFICER: {
     sub: 'argus-local-demo-officer',
-    name: 'Demo Procurement Officer',
-    email: 'demo.procurement@argus.local',
+    name: process.env.ARGUS_DEV_AUTH_NAME || 'ARGUS Evaluation Officer',
+    email: (process.env.ARGUS_DEV_AUTH_EMAIL || 'demo.procurement@argus.local').trim(),
   },
   REVIEWER: {
     sub: 'argus-local-demo-reviewer',
-    name: 'Demo Bid Reviewer',
+    name: 'ARGUS Review Officer',
     email: 'demo.reviewer@argus.local',
   },
   AUDITOR: {
     sub: 'argus-local-demo-auditor',
-    name: 'Demo Procurement Auditor',
+    name: 'ARGUS Audit Officer',
     email: 'demo.auditor@argus.local',
   },
   ADMIN: {
     sub: 'argus-local-demo-admin',
-    name: 'Demo ARGUS Administrator',
+    name: 'ARGUS System Administrator',
     email: 'demo.admin@argus.local',
   },
 };
@@ -109,7 +109,7 @@ function isVercelEnvironment(): boolean {
   );
 }
 
-function resolveAllowedRoles(isVercel: boolean): SupportedRole[] {
+function _resolveAllowedRoles(isVercel: boolean): SupportedRole[] {
   const configured = (process.env.ARGUS_DEV_AUTH_ALLOWED_ROLES || '')
     .split(',')
     .map((r) => r.trim().toUpperCase())
@@ -207,29 +207,17 @@ export async function POST(request: Request) {
     return json({ error: 'Invalid email or password' }, 401);
   }
 
-  // ---- Role selection: allowlist, never arbitrary client input ------------
-  const allowedRoles = resolveAllowedRoles(isVercel);
-  if (allowedRoles.length === 0) {
-    return json(
-      { error: 'No development roles are permitted by ARGUS_DEV_AUTH_ALLOWED_ROLES.' },
-      503
-    );
-  }
+  // ---- Canonical role assignment: ALWAYS internal PROCUREMENT_OFFICER. Client cannot choose role. ----
+  const role: SupportedRole = 'PROCUREMENT_OFFICER';
 
-  const rawRole = typeof body.role === 'string' ? body.role.trim().toUpperCase() : '';
-  const requestedRole = rawRole.length > 0 ? rawRole : DEFAULT_ROLE;
-
-  if (!allowedRoles.includes(requestedRole as SupportedRole)) {
-    return json(
-      {
-        error: `Development role '${requestedRole}' is not permitted. Allowed roles: ${allowedRoles.join(', ')}`,
-      },
-      403
-    );
-  }
-
-  const role = requestedRole as SupportedRole;
-  const profile = ROLE_PROFILES[role];
+  const matchedProfile = Object.values(ROLE_PROFILES).find((p) =>
+    safeEquals(email.toLowerCase(), p.email.toLowerCase())
+  );
+  const profile = {
+    sub: matchedProfile ? matchedProfile.sub : 'argus-local-demo-officer',
+    name: matchedProfile ? matchedProfile.name : (process.env.ARGUS_DEV_AUTH_NAME || 'ARGUS Evaluation Officer'),
+    email: email || (matchedProfile ? matchedProfile.email : 'demo.procurement@argus.local'),
+  };
 
   const now = Math.floor(Date.now() / 1000);
   const expirySeconds = 3600; // 60 minutes, matching the API default
@@ -256,14 +244,39 @@ export async function POST(request: Request) {
     .update(unsignedToken)
     .digest('base64url');
 
+  const token = `${unsignedToken}.${signature}`;
+
+  // Log authoritative LOGIN_SUCCESS via backend auth endpoint (non-blocking)
+  const apiBase = (
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.ARGUS_API_BASE_URL ||
+    'http://127.0.0.1:8000'
+  ).replace(/\/$/, '');
+  try {
+    fetch(`${apiBase}/api/v1/auth/login-event`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    }).catch(() => {
+      // Non-blocking: failsafe if backend endpoint unreachable
+    });
+  } catch {
+    // Non-blocking
+  }
+
   return json(
     {
-      token: `${unsignedToken}.${signature}`,
+      token,
       principal: {
+        id: payload.sub,
         user_id: payload.sub,
         name: payload.name,
+        full_name: payload.name,
         role: payload.role,
         email: payload.email,
+        is_active: true,
       },
       expires_in: expirySeconds,
     },

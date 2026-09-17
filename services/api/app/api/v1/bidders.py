@@ -439,7 +439,8 @@ def record_human_decision(
         )
 
     officer_id = principal.user_id
-    officer_name = principal.name or principal.user_id
+    officer_name = principal.full_name or principal.name or principal.user_id
+    officer_email = principal.email
 
     decision = HumanDecision(
         bidder_id=id,
@@ -448,6 +449,7 @@ def record_human_decision(
         remarks=payload.remarks,
         officer_id=officer_id,
         officer_name=officer_name,
+        officer_email=officer_email,
     )
     db.add(decision)
 
@@ -481,14 +483,14 @@ def record_human_decision(
         action="HUMAN_DECISION_RECORDED",
         entity_type="BIDDER",
         entity_id=id,
-        actor_id=principal.user_id,
-        actor_role=principal.role.value,
+        principal=principal,
         payload={
             "tender_id": bidder.tender_id,
             "bidder_id": id,
             "bidder_name": bidder.bidder_name,
             "officer_id": officer_id,
             "officer_name": officer_name,
+            "officer_email": officer_email,
             "officer_decision": status_val,
             "status": status_val,
             "machine_compliance_status": machine_status,
@@ -1075,8 +1077,7 @@ async def process_bidder_documents(
         action="DOCUMENT_EXTRACTION_REQUESTED",
         entity_type="BIDDER",
         entity_id=bidder_id,
-        actor_id=principal.user_id,
-        actor_role=principal.role.value,
+        principal=principal,
         payload={
             "job_id": job.id,
             "request_id": req_id,
@@ -1459,8 +1460,7 @@ async def trigger_deep_audit(
         action="DEEP_AUDIT_QUEUED",
         entity_type="BIDDER",
         entity_id=id,
-        actor_id=principal.user_id,
-        actor_role=principal.role.value,
+        principal=principal,
         payload={
             "job_id": job.id,
             "bidder_id": id,

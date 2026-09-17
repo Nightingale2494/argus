@@ -25,6 +25,9 @@ export interface RawAuditEvent {
   action?: string;
   actor_id?: string;
   actor_role?: string;
+  actor_user_id?: string;
+  actor_name?: string;
+  actor_email?: string;
   payload_json?: Record<string, unknown>;
   payload?: Record<string, unknown>;
   job_id?: string;
@@ -70,6 +73,10 @@ export interface AuditEventRead {
   entity_type?: string | null;
   entity_id?: string | null;
   actor?: string | null;
+  actor_user_id?: string | null;
+  actor_name?: string | null;
+  actor_email?: string | null;
+  actor_role?: string | null;
   mode?: 'AUTHENTIC' | 'DEMO';
   source?: 'BACKEND / DATABASE' | 'DEMO_STORE / SYNTHETIC';
   target_url?: string | null;

@@ -189,9 +189,19 @@ export default function HumanReviewPage() {
               &quot;{existingDecision.remarks}&quot;
             </p>
           )}
-          <p className="text-xs text-zinc-500 pt-1">
-            Decided By Officer: <span className="font-mono text-zinc-400">{existingDecision.officer_name || existingDecision.officer_id}</span>
-          </p>
+          <div className="pt-2 border-t border-zinc-800/80 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-400">
+            <div>
+              <span className="text-zinc-500">Authorized By:</span>{' '}
+              <span className="font-medium text-zinc-200">{existingDecision.officer_name || existingDecision.officer_id}</span>
+              {existingDecision.officer_email && (
+                <span className="text-zinc-500 font-mono text-[11px] ml-1.5">({existingDecision.officer_email})</span>
+              )}
+            </div>
+            <div>
+              <span className="text-zinc-500">Decision Time:</span>{' '}
+              <span className="font-mono text-zinc-300">{new Date(existingDecision.decided_at).toLocaleString()}</span>
+            </div>
+          </div>
         </div>
       )}
 

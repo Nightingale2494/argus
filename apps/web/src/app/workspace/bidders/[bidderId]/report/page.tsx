@@ -261,8 +261,24 @@ export default function ReportPage() {
                 {report.human_decision.remarks}
               </p>
             )}
-            <div className="text-xs font-mono text-zinc-500 print:text-zinc-600">
-              Recorded By Officer: {report.human_decision.officer_name || report.human_decision.officer_id}
+            <div className="pt-2 border-t border-blue-900/30 print:border-blue-200 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-400 print:text-zinc-700">
+              <div>
+                <span className="text-zinc-500 print:text-zinc-600">Authorized By:</span>{' '}
+                <span className="font-semibold text-zinc-200 print:text-black">
+                  {report.human_decision.officer_name || report.human_decision.officer_id}
+                </span>
+                {report.human_decision.officer_email && (
+                  <span className="text-zinc-500 print:text-zinc-600 font-mono text-[11px] ml-1.5">
+                    ({report.human_decision.officer_email})
+                  </span>
+                )}
+              </div>
+              <div>
+                <span className="text-zinc-500 print:text-zinc-600">Decision Time:</span>{' '}
+                <span className="font-mono text-zinc-300 print:text-zinc-800">
+                  {new Date(report.human_decision.decided_at).toLocaleString()}
+                </span>
+              </div>
             </div>
           </div>
         )}

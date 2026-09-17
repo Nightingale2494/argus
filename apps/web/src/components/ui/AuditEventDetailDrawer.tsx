@@ -153,6 +153,9 @@ export const AuditEventDetailDrawer: React.FC<AuditEventDetailDrawerProps> = ({
       entity_type: event.entity_type,
       entity_id: event.entity_id,
       actor: event.actor,
+      actor_user_id: event.actor_user_id || payload.actor_user_id,
+      actor_name: event.actor_name || payload.actor_name,
+      actor_email: event.actor_email || payload.actor_email,
       target_url: event.target_url,
       ...payload,
     };
@@ -282,8 +285,16 @@ export const AuditEventDetailDrawer: React.FC<AuditEventDetailDrawerProps> = ({
             </span>
             <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800/80 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
               <div>
-                <span className="text-zinc-500 text-[11px] block">Actor</span>
-                <span className="text-zinc-200 font-medium break-all">{event.actor || '—'}</span>
+                <span className="text-zinc-500 text-[11px] block">Actor Name</span>
+                <span className="text-zinc-200 font-medium break-all">{event.actor_name || (payload.actor_name as string) || '—'}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 text-[11px] block">Actor Email</span>
+                <span className="text-zinc-200 font-medium break-all">{event.actor_email || (payload.actor_email as string) || '—'}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 text-[11px] block">Actor ID / Principal</span>
+                <span className="text-zinc-200 font-medium break-all">{event.actor_user_id || (payload.actor_user_id as string) || event.actor || '—'}</span>
               </div>
               <div>
                 <span className="text-zinc-500 text-[11px] block">Action</span>

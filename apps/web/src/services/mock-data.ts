@@ -18,9 +18,11 @@ import type {
 
 export const MOCK_PRINCIPAL: AuthenticatedPrincipal = {
   user_id: 'argus-local-demo-officer',
-  name: 'Demo Procurement Officer',
+  name: 'ARGUS Evaluation Officer',
+  full_name: 'ARGUS Evaluation Officer',
   email: 'demo.procurement@argus.local',
   role: 'PROCUREMENT_OFFICER',
+  is_active: true,
 };
 
 export const MOCK_TENDERS: TenderRead[] = [

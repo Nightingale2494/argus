@@ -317,9 +317,22 @@ class HumanDecision(Base):
     remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
     officer_id: Mapped[str] = mapped_column(String, nullable=False)
     officer_name: Mapped[str] = mapped_column(String, nullable=False)
+    officer_email: Mapped[str | None] = mapped_column(String, nullable=True)
     decided_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     bidder: Mapped["Bidder"] = relationship("Bidder", back_populates="human_decisions")
+
+    @property
+    def actor_user_id(self) -> str:
+        return self.officer_id
+
+    @property
+    def actor_name(self) -> str:
+        return self.officer_name
+
+    @property
+    def actor_email(self) -> str | None:
+        return self.officer_email
 
 
 class AuditEvent(Base):
@@ -333,6 +346,18 @@ class AuditEvent(Base):
     actor_role: Mapped[str] = mapped_column(String, nullable=False)
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    @property
+    def actor_user_id(self) -> str:
+        return (self.payload_json or {}).get("actor_user_id") or self.actor_id
+
+    @property
+    def actor_name(self) -> str | None:
+        return (self.payload_json or {}).get("actor_name")
+
+    @property
+    def actor_email(self) -> str | None:
+        return (self.payload_json or {}).get("actor_email")
 
 
 class IdempotencyRecord(Base):
