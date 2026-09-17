@@ -538,16 +538,54 @@ def test_two_requirements_from_same_source_clause_evaluated_independently():
     assert res_gst_a.status == ComplianceStatus.PASS
     assert res_gem_a.status == ComplianceStatus.UNKNOWN
 
-    # Case B: Bidder provides both GST and GeM seller evidence
+    # Case B: Bidder provides both GST and verified GeM seller evidence
     gem_fact = make_fact("GEM-SELLER-998811", field="gem.seller_id")
+    gem_ver = make_verification(
+        VerificationStatus.VERIFIED,
+        verified_value={"status": "ACTIVE"},
+        field="gem.seller_id",
+        ver_id="VER-GEM-1",
+    )
     all_facts = [gst_fact, gem_fact]
-    all_ver = [gst_ver]
+    all_ver = [gst_ver, gem_ver]
 
     res_gst_b = ComplianceEngine.evaluate(req_gst, all_facts, all_ver)
     res_gem_b = ComplianceEngine.evaluate(req_gem, all_facts, all_ver)
     assert res_gst_b.status == ComplianceStatus.PASS
     assert res_gem_b.status == ComplianceStatus.PASS
     assert res_gem_b.reason_code == "EVIDENCE_EXISTS"
+
+
+def test_fake_gem_id_without_verification_not_pass():
+    # 1. Claim-only fake seller ID without verification -> NOT PASS
+    req_gem = make_requirement(OperatorEnum.EXISTS, True, field="gem.seller_id", mandatory=True)
+    fake_fact = make_fact("FAKE123", field="gem.seller_id")
+    res_claim_only = ComplianceEngine.evaluate(req_gem, [fake_fact], [])
+    assert res_claim_only.status != ComplianceStatus.PASS
+    assert res_claim_only.status == ComplianceStatus.REVIEW_REQUIRED
+    assert res_claim_only.reason_code == "VERIFICATION_UNAVAILABLE"
+
+    # 2. No GeM evidence at all -> NOT PASS (UNKNOWN / MISSING_EVIDENCE)
+    res_no_evidence = ComplianceEngine.evaluate(req_gem, [], [])
+    assert res_no_evidence.status != ComplianceStatus.PASS
+    assert res_no_evidence.status == ComplianceStatus.UNKNOWN
+    assert res_no_evidence.reason_code == "MISSING_EVIDENCE"
+
+    # 3. Provider-backed verified GeM evidence -> PASS
+    gem_ver = make_verification(
+        VerificationStatus.VERIFIED,
+        verified_value={"status": "ACTIVE"},
+        field="gem.seller_id",
+    )
+    res_verified = ComplianceEngine.evaluate(req_gem, [fake_fact], [gem_ver])
+    assert res_verified.status == ComplianceStatus.PASS
+    assert res_verified.reason_code == "EVIDENCE_EXISTS"
+
+    # 4. Trusted documentary registration proof -> PASS
+    doc_fact = make_fact("GEM-SELLER-998811", field="gem.seller_id", meta={"document_type": "GEM_CERTIFICATE"})
+    res_doc = ComplianceEngine.evaluate(req_gem, [doc_fact], [])
+    assert res_doc.status == ComplianceStatus.PASS
+    assert res_doc.reason_code == "EVIDENCE_EXISTS"
 
 
 def test_overall_report_preserves_both_evaluations():

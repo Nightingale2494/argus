@@ -240,7 +240,7 @@ DEMO_REQUIREMENTS: dict[str, list[dict[str, Any]]] = {
             "unit": None,
             "mandatory": True,
             "confidence": 1.0,
-            "requires_verification": False,
+            "requires_verification": True,
             "is_approved": True,
             "source_page": 1,
             "source_text": "Valid GSTIN required and bidder must be registered on the GeM portal.",

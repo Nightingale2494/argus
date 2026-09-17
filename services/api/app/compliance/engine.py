@@ -1155,6 +1155,30 @@ class ComplianceEngine:
                     evaluated_at=eval_ts,
                 )
 
+            # Fail-safe guard for portal/statutory registration requirements requiring external verification:
+            # A claimed scalar registration ID alone (e.g. FAKE123) cannot silently pass without external confirmation
+            # or trusted documentary registration proof.
+            if getattr(rule, "requires_verification", False) is True:
+                if are_fields_equivalent(rule.field, "gem.seller_id") or str(rule.field).startswith("gem."):
+                    fact_meta = getattr(facts_with_val[0], "metadata_json", {}) or {}
+                    has_documentary_proof = (
+                        fact_meta.get("document_type") in ("GEM_CERTIFICATE", "GEM_SELLER_PROFILE")
+                        or fact_meta.get("verified_document") is True
+                    )
+                    if not has_documentary_proof:
+                        return RuleEvaluationRead(
+                            id=eval_id,
+                            bidder_id=context.get("bidder_id", "UNKNOWN_BIDDER"),
+                            requirement_id=rule.id,
+                            status=ComplianceStatus.REVIEW_REQUIRED,
+                            reason_code=ReasonCode.VERIFICATION_UNAVAILABLE,
+                            observed_value=facts_with_val[0].value,
+                            expected_value=rule.expected_value,
+                            evidence_ids=[f.id for f in facts_with_val],
+                            rule_version=f"{cls.ENGINE_VERSION}",
+                            evaluated_at=eval_ts,
+                        )
+
 
         # Determine single primary contributing input for standard evaluation
         primary_input_ids = []
