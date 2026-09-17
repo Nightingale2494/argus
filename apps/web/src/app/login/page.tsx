@@ -12,8 +12,10 @@ function LoginContent() {
   const { isAuthenticated, isDemoPreview } = useAuth();
 
   useEffect(() => {
-    if (isAuthenticated || isDemoPreview) {
+    if (isAuthenticated) {
       router.replace('/workspace');
+    } else if (isDemoPreview) {
+      router.replace('/workspace?mode=demo');
     }
   }, [isAuthenticated, isDemoPreview, router]);
 

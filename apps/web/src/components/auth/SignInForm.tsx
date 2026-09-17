@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sparkles, Eye, EyeOff, Lock, Mail, AlertCircle, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, AlertCircle, Loader2, Terminal, KeyRound } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 interface SignInFormProps {
@@ -62,34 +62,15 @@ export const SignInForm: React.FC<SignInFormProps> = ({
     }
   };
 
-  const handleDemoSignIn = async () => {
-    try {
-      setSigningIn(true);
-      setErrorMessage(null);
-      setEmail('demo.procurement@argus.local');
-      setPassword('ArgusDemo2026!');
-      const success = await loginDevOfficer({
-        email: 'demo.procurement@argus.local',
-        password: 'ArgusDemo2026!',
-      });
-      if (success) {
-        if (onSuccess) {
-          onSuccess();
-        } else if (redirectTo) {
-          router.push(redirectTo);
-        }
-      } else {
-        enableDemoPreview(true);
-        if (onSuccess) onSuccess();
-        else if (redirectTo) router.push(redirectTo);
-      }
-    } catch {
-      enableDemoPreview(true);
-      if (onSuccess) onSuccess();
-      else if (redirectTo) router.push(redirectTo);
-    } finally {
-      setSigningIn(false);
-    }
+  const handleUseDemoCredentials = () => {
+    setEmail('demo.procurement@argus.local');
+    setPassword('ArgusDemo2026!');
+    setErrorMessage(null);
+  };
+
+  const handleOpenDemoWorkspace = () => {
+    enableDemoPreview(true);
+    router.push('/workspace?mode=demo');
   };
 
   return (
@@ -181,7 +162,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
           <button
             type="submit"
             disabled={signingIn}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`${onCancel ? 'flex-1 sm:flex-initial' : 'w-full'} inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             {signingIn ? (
               <>
@@ -195,18 +176,47 @@ export const SignInForm: React.FC<SignInFormProps> = ({
         </div>
       </form>
 
-      {/* SIH Demo Quick Access Button */}
+      {/* Convenience shortcuts: Use Demo Credentials & Open Demo Workspace */}
       {showDemoButton && (
-        <div className="pt-2 border-t border-slate-800">
-          <button
-            type="button"
-            onClick={handleDemoSignIn}
-            disabled={signingIn}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 text-slate-300 hover:text-white text-xs font-mono transition-all cursor-pointer disabled:opacity-50"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Sign In as Evaluation Officer (Demo)</span>
-          </button>
+        <div className="space-y-3 pt-2">
+          {/* OR Divider */}
+          <div className="relative flex py-1 items-center">
+            <div className="flex-grow border-t border-slate-800" />
+            <span className="flex-shrink mx-3 text-[10px] font-mono uppercase tracking-wider text-slate-500">OR</span>
+            <div className="flex-grow border-t border-slate-800" />
+          </div>
+
+          {/* Button 1: Use Demo Credentials */}
+          <div>
+            <button
+              type="button"
+              onClick={handleUseDemoCredentials}
+              disabled={signingIn}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 text-slate-200 hover:text-white text-xs font-mono transition-all cursor-pointer disabled:opacity-50"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+              <span>Use Demo Credentials</span>
+            </button>
+            <p className="mt-1 text-[11px] text-slate-400 font-mono text-center">
+              Fill the evaluation account for the authenticated workspace.
+            </p>
+          </div>
+
+          {/* Button 2: Open Demo Workspace */}
+          <div>
+            <button
+              type="button"
+              onClick={handleOpenDemoWorkspace}
+              disabled={signingIn}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-slate-900 hover:bg-slate-800/60 border border-indigo-900/60 hover:border-indigo-700/60 text-indigo-300 hover:text-indigo-200 text-xs font-mono transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Terminal className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Open Demo Workspace</span>
+            </button>
+            <p className="mt-1 text-[11px] text-slate-400 font-mono text-center">
+              Explore the synthetic fallback/demo environment.
+            </p>
+          </div>
         </div>
       )}
     </div>
