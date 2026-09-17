@@ -2061,7 +2061,7 @@
       </ul>
 
       <div class="nav-actions">
-        <button class="btn-nav-signin" id="navSignInBtn">Sign In</button>
+        <a href="/login" class="btn-nav-signin" id="navSignInBtn" style="text-decoration:none;">Sign In</a>
         <button class="hamburger" id="hamburgerBtn" aria-label="Open Navigation Drawer">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
@@ -2084,11 +2084,7 @@
       <a href="#governance" class="btn btn-ghost" style="justify-content: flex-start;">Governance</a>
     </div>
     <div style="margin-top: auto; display: flex; flex-direction: column; gap: 0.75rem;">
-      <button class="role-pill" id="drawerRoleBtn" style="height: 38px; width: 100%; justify-content: center;" title="Click to switch persona">
-        <span class="role-pill-indicator"></span>
-        <span id="drawerRoleText">PROCUREMENT OFFICER</span>
-      </button>
-      <button class="btn btn-secondary" id="mobileSignInBtn" style="width:100%; justify-content:center;">Sign In</button>
+      <a href="/login" class="btn btn-primary" id="mobileSignInBtn" style="width:100%; justify-content:center; text-decoration:none;">Sign In</a>
     </div>
   </div>
 
@@ -2807,103 +2803,7 @@
     </div>
   </footer>
 
-  <!-- ==========================================================================
-       SECTION 15: AUTH & ROLE MODAL
-       ========================================================================== -->
-  <div class="modal-overlay" id="authModal">
-    <div class="modal-card">
-      <button class="modal-close" id="modalCloseBtn">&times;</button>
-      
-      <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem;">
-        <span class="brand-logo" style="font-size:1.3rem;">ARGUS<span class="brand-dot"></span></span>
-        <span class="badge badge-pass">OFFICER SIGN IN</span>
-      </div>
-      <div style="font-size:0.85rem; color:var(--text-2); margin-bottom:1.15rem;">Enter credentials to access the Procurement Workspace</div>
 
-      <div style="display:flex; flex-direction:column; gap:0.85rem;">
-        <!-- Primary: Credential Entry Form -->
-        <div style="background:rgba(0,230,118,0.04); border:1px solid rgba(0,230,118,0.25); padding:1.25rem; border-radius:var(--radius-md);">
-          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
-            <div style="font-weight:600; font-size:0.9rem; color:#FFF;">ARGUS Officer Sign In</div>
-            <span class="badge badge-pass" style="font-size:0.65rem;">DEMO ACCESS</span>
-          </div>
-
-          <form id="devSignInForm" style="display:flex; flex-direction:column; gap:0.75rem;">
-            <div>
-              <label for="devAuthEmail" style="display:block; font-size:0.75rem; color:var(--text-2); margin-bottom:0.25rem; font-family:'JetBrains Mono', monospace;">Email Address</label>
-              <input type="email" id="devAuthEmail" required placeholder="demo.procurement@argus.local" autocomplete="username" style="width:100%; padding:0.55rem 0.75rem; border-radius:var(--radius-sm); background:rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.15); color:#FFF; font-size:0.85rem; box-sizing:border-box;">
-            </div>
-
-            <div>
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
-                <label for="devAuthPassword" style="font-size:0.75rem; color:var(--text-2); font-family:'JetBrains Mono', monospace;">Password</label>
-                <button type="button" id="btnFillDevCredentials" style="background:none; border:none; color:var(--sapphire); font-size:0.72rem; cursor:pointer; text-decoration:underline;">
-                  Use Demo Credentials
-                </button>
-              </div>
-              <input type="password" id="devAuthPassword" required placeholder="••••••••••••" autocomplete="current-password" style="width:100%; padding:0.55rem 0.75rem; border-radius:var(--radius-sm); background:rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.15); color:#FFF; font-size:0.85rem; box-sizing:border-box;">
-            </div>
-
-            <div>
-              <label for="devAuthRole" style="display:block; font-size:0.75rem; color:var(--text-2); margin-bottom:0.25rem; font-family:'JetBrains Mono', monospace;">Workspace Role</label>
-              <select id="devAuthRole" style="width:100%; padding:0.55rem 0.75rem; border-radius:var(--radius-sm); background:rgba(15,23,42,0.9); border:1px solid rgba(255,255,255,0.15); color:#FFF; font-size:0.85rem; box-sizing:border-box;">
-                <option value="PROCUREMENT_OFFICER" selected>Procurement Officer</option>
-                <option value="REVIEWER">Reviewer</option>
-                <option value="AUDITOR">Auditor</option>
-                <option value="ADMIN">Administrator</option>
-              </select>
-            </div>
-
-            <div style="font-size:0.72rem; color:var(--text-3); font-family:'JetBrains Mono', monospace; line-height:1.4;">
-              Demo credentials available for SIH evaluation
-            </div>
-
-            <div id="signInError" style="display:none; color:#F87171; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); padding:0.5rem 0.75rem; border-radius:var(--radius-sm); font-size:0.75rem; font-family:'JetBrains Mono', monospace;"></div>
-
-            <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:0.25rem;" id="btnSubmitCredentials">
-              Sign In
-            </button>
-          </form>
-        </div>
-
-        <div style="display:flex; align-items:center; gap:0.5rem; margin:0.25rem 0; font-size:0.7rem; color:var(--text-3); text-transform:uppercase; letter-spacing:0.06em;">
-          <div style="flex:1; height:1px; background:rgba(255,255,255,0.1);"></div>
-          <span>Secondary Access Options</span>
-          <div style="flex:1; height:1px; background:rgba(255,255,255,0.1);"></div>
-        </div>
-
-        <!-- Secondary Option 1: Demo Workspace -->
-        <div style="background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.2); padding:0.85rem; border-radius:var(--radius-md);">
-          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.25rem;">
-            <div style="font-weight:600; font-size:0.85rem; color:#FFF;">Synthetic Demo Workspace</div>
-            <span class="badge" style="background:rgba(255,176,32,0.15); border:1px solid rgba(255,176,32,0.3); color:#FFB020; font-size:0.6rem;">SYNTHETIC DATA</span>
-          </div>
-          <p style="font-size:0.75rem; color:var(--text-2); margin-bottom:0.6rem; line-height:1.35;">
-            Explore deterministic evaluation pipeline with synthetic fixtures. Zero backend mutations; no credentials required.
-          </p>
-          <button class="btn btn-secondary" style="width:100%; justify-content:center; font-size:0.8rem; padding:0.45rem 1rem;" id="btnEnterDemo">
-            Enter Demo Workspace
-          </button>
-        </div>
-
-        <!-- Secondary Option 2: Authorized Access (Bearer Token) -->
-        <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.07); padding:0.85rem; border-radius:var(--radius-md);">
-          <div style="display:flex; align-items:center; justify-content:space-between;">
-            <div style="font-weight:600; font-size:0.85rem; color:#FFF;">Authorized Access</div>
-            <button type="button" id="toggleAuthToken" style="background:none; border:none; color:var(--sapphire); font-size:0.75rem; text-decoration:underline; cursor:pointer;">
-              Advanced: Authorized Bearer Token
-            </button>
-          </div>
-          <div id="authorizedTokenSection" style="display:none; margin-top:0.6rem;">
-            <input type="password" id="authTokenInput" placeholder="Paste Bearer JWT token..." style="width:100%; padding:0.5rem; border-radius:var(--radius-sm); background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.15); color:#FFF; font-family:'JetBrains Mono', monospace; font-size:0.75rem; margin-bottom:0.5rem; box-sizing:border-box;">
-            <button class="btn btn-secondary" style="width:100%; justify-content:center; font-size:0.8rem; padding:0.45rem 1rem;" id="btnSubmitAuthToken">
-              Verify Authorized Session
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- Toast Container -->
   <div class="toast-container" id="toastContainer"></div>
@@ -2914,7 +2814,6 @@
   <script>
     // State management
     const state = {
-      activeRole: 'PROCUREMENT OFFICER',
       currentBidderIndex: 0,
       activeStoryStep: 1,
       ruleApproved: true,
@@ -2975,219 +2874,20 @@
       }, 3500);
     }
 
-    // Role Switching
-    function setRole(role) {
-      state.activeRole = role;
-      const roleTextEl = document.getElementById('activeRoleText');
-      if (roleTextEl) roleTextEl.textContent = role;
-      const drawerRoleTextEl = document.getElementById('drawerRoleText');
-      if (drawerRoleTextEl) drawerRoleTextEl.textContent = role;
-      closeModal();
-      showToast(`Switched active role to ${role}`, 'pass');
-
-      // Update Perspective if Auditor
-      if (role === 'AUDITOR') {
-        renderPerspective('auditor');
-      } else {
-        renderPerspective('procurement');
-      }
-    }
-
-    // Modal Controls
-    const modal = document.getElementById('authModal');
-    function openModal() {
-      if (!modal) return;
-      modal.classList.add('open');
-    }
-    function closeModal() {
-      if (!modal) return;
-      modal.classList.remove('open');
-    }
-
-    document.getElementById('navSignInBtn')?.addEventListener('click', () => {
-      openModal();
-    });
-    document.getElementById('drawerRoleBtn')?.addEventListener('click', () => {
-      toggleDrawer(false);
-      openModal();
-    });
-    document.getElementById('mobileSignInBtn')?.addEventListener('click', () => {
-      toggleDrawer(false);
-      openModal();
-    });
-    document.getElementById('modalCloseBtn')?.addEventListener('click', closeModal);
-    if (modal) {
-      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-      window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
-    }
-
-    // Helper function to verify token with backend /api/v1/auth/me
-    async function verifyAndEnterWorkspace(token) {
-      const apiBase = 'https://argus-api-h93c.onrender.com';
-      try {
-        const response = await fetch(`${apiBase}/api/v1/auth/me`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (response.status === 200) {
-          const principal = await response.json();
-          if (typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem('argus_auth_token', token);
-            sessionStorage.setItem('argus_workspace_mode', 'authorized');
-            localStorage.removeItem('argus_auth_token');
-          }
-          showToast(`Authenticated: ${principal.name || principal.user_id} (${principal.role})`, 'pass');
-          setTimeout(() => {
-            window.location.href = '/workspace?mode=authorized';
-          }, 350);
-          return true;
-        } else if (response.status === 401) {
-          showToast('Session Required / Token Expired', 'critical');
-          return false;
-        } else if (response.status === 403) {
-          showToast('Access Denied / Role Not Authorized', 'critical');
-          return false;
-        } else {
-          showToast(`Authentication Error (${response.status})`, 'critical');
-          return false;
-        }
-      } catch (err) {
-        showToast('Backend Unavailable: Server unreachable at ' + apiBase, 'critical');
-        return false;
-      }
-    }
-
-    // Form Error Helper
-    const signInError = document.getElementById('signInError');
-    function setFormError(msg) {
-      if (!signInError) return;
-      if (msg) {
-        signInError.textContent = msg;
-        signInError.style.display = 'block';
-      } else {
-        signInError.textContent = '';
-        signInError.style.display = 'none';
-      }
-    }
-
-    // Helper: Autofill Dev Credentials
-    document.getElementById('btnFillDevCredentials')?.addEventListener('click', () => {
-      const emailInput = document.getElementById('devAuthEmail');
-      const passInput = document.getElementById('devAuthPassword');
-      if (emailInput) emailInput.value = 'demo.procurement@argus.local';
-      if (passInput) passInput.value = 'ArgusDemo2026!';
-      setFormError(null);
-    });
-
-    // Primary: Submit Dev Sign In Credentials Form
-    const devSignInForm = document.getElementById('devSignInForm');
-    const btnSubmitCredentials = document.getElementById('btnSubmitCredentials');
-    devSignInForm?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      setFormError(null);
-
-      const emailInput = document.getElementById('devAuthEmail');
-      const passInput = document.getElementById('devAuthPassword');
-      const roleSelect = document.getElementById('devAuthRole');
-      const email = emailInput ? emailInput.value.trim() : '';
-      const password = passInput ? passInput.value : '';
-      const role = roleSelect ? roleSelect.value : 'PROCUREMENT_OFFICER';
-
-      if (!email || !password) {
-        setFormError('Please enter both email and password.');
-        return;
-      }
-
-      const origText = btnSubmitCredentials.textContent;
-      btnSubmitCredentials.disabled = true;
-      btnSubmitCredentials.textContent = 'Validating credentials & role...';
-
-      try {
-        const res = await fetch('/api/auth/dev-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, role }),
-        });
-
-        if (res.status === 401) {
-          const errData = await res.json().catch(() => ({}));
-          setFormError(errData.error || 'Invalid email or password');
-          btnSubmitCredentials.disabled = false;
-          btnSubmitCredentials.textContent = origText;
-          return;
-        }
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          setFormError(errData.error || `Sign-in failed (status ${res.status})`);
-          btnSubmitCredentials.disabled = false;
-          btnSubmitCredentials.textContent = origText;
-          return;
-        }
-
-        const data = await res.json();
-        if (!data.token) {
-          setFormError('No token returned by authentication service.');
-          btnSubmitCredentials.disabled = false;
-          btnSubmitCredentials.textContent = origText;
-          return;
-        }
-
-        btnSubmitCredentials.textContent = 'Verifying with /auth/me...';
-        const ok = await verifyAndEnterWorkspace(data.token);
-        if (!ok) {
-          btnSubmitCredentials.disabled = false;
-          btnSubmitCredentials.textContent = origText;
-        }
-      } catch (err) {
-        setFormError('Sign-in error: ' + (err.message || String(err)));
-        btnSubmitCredentials.disabled = false;
-        btnSubmitCredentials.textContent = origText;
-      }
-    });
-
-    // Secondary Option 1: Enter Demo Workspace
-    document.getElementById('btnEnterDemo')?.addEventListener('click', () => {
-      closeModal();
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.setItem('argus_workspace_mode', 'demo');
-        sessionStorage.removeItem('argus_auth_token');
-        localStorage.removeItem('argus_auth_token');
-      }
-      window.location.href = '/workspace?mode=demo';
-    });
-
-    // Secondary Option 2: Authorized Access Toggle & Submit
-    document.getElementById('toggleAuthToken')?.addEventListener('click', () => {
-      const sec = document.getElementById('authorizedTokenSection');
-      if (sec) sec.style.display = sec.style.display === 'none' ? 'block' : 'none';
-    });
-
-    document.getElementById('btnSubmitAuthToken')?.addEventListener('click', async () => {
-      const input = document.getElementById('authTokenInput');
-      const token = input ? input.value.trim() : '';
-      if (!token) {
-        showToast('Please paste an authorized Bearer token', 'high');
-        return;
-      }
-      await verifyAndEnterWorkspace(token);
-    });
-
     // Mobile Drawer
     const drawer = document.getElementById('mobileDrawer');
     const drawerOverlay = document.getElementById('drawerOverlay');
-    document.getElementById('hamburgerBtn')?.addEventListener('click', () => {
-      drawer?.classList.add('open');
-      drawerOverlay?.classList.add('open');
-    });
     const closeDrawer = () => {
       drawer?.classList.remove('open');
       drawerOverlay?.classList.remove('open');
     };
+    document.getElementById('hamburgerBtn')?.addEventListener('click', () => {
+      drawer?.classList.add('open');
+      drawerOverlay?.classList.add('open');
+    });
     document.getElementById('drawerCloseBtn')?.addEventListener('click', closeDrawer);
     drawerOverlay?.addEventListener('click', closeDrawer);
+    document.getElementById('mobileSignInBtn')?.addEventListener('click', closeDrawer);
 
     // Navbar Scroll Effect
     window.addEventListener('scroll', () => {
