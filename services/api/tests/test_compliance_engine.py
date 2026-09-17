@@ -581,11 +581,12 @@ def test_fake_gem_id_without_verification_not_pass():
     assert res_verified.status == ComplianceStatus.PASS
     assert res_verified.reason_code == "EVIDENCE_EXISTS"
 
-    # 4. Trusted documentary registration proof -> PASS
-    doc_fact = make_fact("GEM-SELLER-998811", field="gem.seller_id", meta={"document_type": "GEM_CERTIFICATE"})
-    res_doc = ComplianceEngine.evaluate(req_gem, [doc_fact], [])
-    assert res_doc.status == ComplianceStatus.PASS
-    assert res_doc.reason_code == "EVIDENCE_EXISTS"
+    # 4. Fake fact with client-controlled document_type="GEM_CERTIFICATE" without external verification -> NOT PASS
+    doc_fact_fake = make_fact("FAKE123", field="gem.seller_id", meta={"document_type": "GEM_CERTIFICATE"})
+    res_doc_fake = ComplianceEngine.evaluate(req_gem, [doc_fact_fake], [])
+    assert res_doc_fake.status != ComplianceStatus.PASS
+    assert res_doc_fake.status == ComplianceStatus.REVIEW_REQUIRED
+    assert res_doc_fake.reason_code == "VERIFICATION_UNAVAILABLE"
 
 
 def test_overall_report_preserves_both_evaluations():
