@@ -14,7 +14,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from .contracts import (DocumentClassification, DocumentExtractionResponse,
                         EvidenceChunk, RiskSignal, TenderExtractionResponse)
 from .extraction.service import classify_document, extract_document, extract_tender
-from .model_gateway.gateway import configured_gateway
+from .model_gateway.gateway import configured_gateway, ModelProviderUnavailableError
+from .parsing.service import DocumentParseError
 from .rag.service import InMemoryRAG
 from .rag.pgvector import PgVectorRAG
 from .rag.ingestion import ingest_document
@@ -337,11 +338,12 @@ def create_app(rag: Optional[Any] = None, checkpointer: Optional[Any] = None) ->
             # shapes. Previously the contract-mode branch dropped them, so the
             # backend — which always sends request_id/contract_version — never saw
             # that an extraction was low confidence (audit finding C-6).
+            fallback_used = any(fact.provider == "DETERMINISTIC_FALLBACK" for fact in facts)
             low_confidence_fields = [
                 fact.field for fact in facts if fact.confidence < _LOW_CONFIDENCE_THRESHOLD
             ]
-            review_required = bool(low_confidence_fields)
-
+            review_required = bool(low_confidence_fields) or fallback_used
+            provider_model = "DETERMINISTIC_FALLBACK" if fallback_used else gw.model_name
 
             if payload.request_id or payload.contract_version:
                 return {
@@ -354,6 +356,7 @@ def create_app(rag: Optional[Any] = None, checkpointer: Optional[Any] = None) ->
                     "review_required": review_required,
                     "low_confidence_fields": low_confidence_fields,
                     "confidence_threshold": _LOW_CONFIDENCE_THRESHOLD,
+                    "fallback_used": fallback_used,
                     "facts": [
                         {
                             "field": fact.field,
@@ -368,11 +371,12 @@ def create_app(rag: Optional[Any] = None, checkpointer: Optional[Any] = None) ->
                                 "provider": fact.provider,
                                 "model": fact.model,
                                 "bounding_box": fact.bounding_box,
+                                "fallback_used": fallback_used,
                             },
                         }
                         for fact in facts
                     ],
-                    "provider_model": gw.model_name,
+                    "provider_model": provider_model,
                 }
 
             api_facts = [{k: v for k, v in fact.model_dump(mode="json").items() if k in {"field", "value", "source_page", "source_text", "confidence"}} for fact in facts]
@@ -381,8 +385,14 @@ def create_app(rag: Optional[Any] = None, checkpointer: Optional[Any] = None) ->
                 "review_required": review_required,
                 "low_confidence_fields": low_confidence_fields,
                 "confidence_threshold": _LOW_CONFIDENCE_THRESHOLD,
+                "fallback_used": fallback_used,
             }
-        except (ValueError, DocumentResolutionError) as exc:
+        except ModelProviderUnavailableError as exc:
+            raise HTTPException(
+                503,
+                detail={"error_code": "MODEL_PROVIDER_UNAVAILABLE", "message": str(exc)},
+            ) from exc
+        except (ValueError, DocumentResolutionError, DocumentParseError) as exc:
             raise HTTPException(422, str(exc)) from exc
         finally:
             if temp_file and temp_file.exists():

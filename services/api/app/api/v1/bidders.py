@@ -1112,10 +1112,12 @@ async def process_bidder_documents(
     successful_docs = 0
     failed_docs = 0
     low_confidence_fields: list[str] = []
+    failed_doc_details: list[str] = []
 
     for doc in documents:
         if not doc.sha256 or not doc.sha256.strip():
             failed_docs += 1
+            failed_doc_details.append(f"Document: {doc.filename}. Reason: Missing SHA-256 digest.")
             AuditLogger.log(
                 db,
                 action="DOCUMENT_EXTRACTION_FAILED",
@@ -1129,6 +1131,7 @@ async def process_bidder_documents(
 
         if not doc.storage_uri or not storage.file_exists(doc.storage_uri):
             failed_docs += 1
+            failed_doc_details.append(f"Document: {doc.filename}. Reason: Storage file not found.")
             AuditLogger.log(
                 db,
                 action="DOCUMENT_EXTRACTION_FAILED",
@@ -1148,6 +1151,7 @@ async def process_bidder_documents(
 
         if not file_bytes:
             failed_docs += 1
+            failed_doc_details.append(f"Document: {doc.filename}. Reason: Storage read error.")
             AuditLogger.log(
                 db,
                 action="DOCUMENT_EXTRACTION_FAILED",
@@ -1162,6 +1166,7 @@ async def process_bidder_documents(
         computed_sha256 = hashlib.sha256(file_bytes).hexdigest()
         if computed_sha256 != doc.sha256:
             failed_docs += 1
+            failed_doc_details.append(f"Document: {doc.filename}. Reason: Document integrity mismatch.")
             AuditLogger.log(
                 db,
                 action="DOCUMENT_EXTRACTION_FAILED",
@@ -1207,6 +1212,8 @@ async def process_bidder_documents(
 
         if not ai_res.success or not ai_res.data:
             failed_docs += 1
+            reason = ai_res.message or "Intelligence provider unavailable and deterministic fallback produced no usable facts."
+            failed_doc_details.append(f"Document: {doc.filename}. Reason: {reason}")
             AuditLogger.log(
                 db,
                 action="DOCUMENT_EXTRACTION_FAILED",
@@ -1364,7 +1371,10 @@ async def process_bidder_documents(
         job.completed_at = datetime.now(timezone.utc)
     else:
         job.status = JobStatus.FAILED
-        job.error_message = f"Extraction failed for all {total_docs} documents."
+        if failed_doc_details:
+            job.error_message = f"Extraction failed for all {total_docs} documents: " + "; ".join(failed_doc_details)
+        else:
+            job.error_message = f"Extraction failed for all {total_docs} documents."
         job.progress = 100
         job.completed_at = datetime.now(timezone.utc)
 
