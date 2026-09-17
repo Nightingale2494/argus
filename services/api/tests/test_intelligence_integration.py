@@ -1094,4 +1094,118 @@ async def test_worker_execute_job_error_sanitization(monkeypatch):
     assert "[path]" in sanitized
 
 
+def test_reprocessing_same_unchanged_document_idempotency(monkeypatch):
+    """Regression test: reprocessing the same unchanged document produces a stable fact set.
+    fact count after run 1 == fact count after run 2, and no duplicate canonical facts exist.
+    """
+    from app.compliance.canonical_fields import resolve_canonical_field
+
+    headers = get_auth_headers(UserRole.PROCUREMENT_OFFICER)
+    client = TestClient(app)
+
+    t_res = client.post(
+        "/api/v1/tenders",
+        json={"tender_number": "GEM/2026/IDEMPOTENCY_DOC", "title": "Idempotency Test Tender"},
+        headers=headers,
+    )
+    assert t_res.status_code == 201
+    tender_id = t_res.json()["id"]
+
+    b_res = client.post(
+        f"/api/v1/tenders/{tender_id}/bidders",
+        json={"bidder_name": "Idempotent Solar Ltd", "gstin": "29ABCDE5678K1Z1"},
+        headers=headers,
+    )
+    assert b_res.status_code == 201
+    bidder_id = b_res.json()["id"]
+
+    doc_bytes = b"%PDF-1.4 Unchanged Bidder Document Payload Content"
+    doc_res = client.post(
+        f"/api/v1/bidders/{bidder_id}/documents",
+        headers=headers,
+        files={"file": ("bidder_proposal.pdf", doc_bytes, "application/pdf")},
+        data={"document_type": DocumentType.GST_CERT.value},
+    )
+    assert doc_res.status_code == 201
+    doc_id = doc_res.json()["id"]
+
+    async def mock_extract_post(self, url, headers=None, json=None):
+        return httpx.Response(
+            200,
+            json={
+                "contract_version": "1.0",
+                "request_id": (json or {}).get("request_id", "req-idempotent-test"),
+                "document_id": (json or {}).get("document_id", doc_id),
+                "document_sha256": (json or {}).get("document_sha256", "abc"),
+                "bidder_id": (json or {}).get("bidder_id", bidder_id),
+                "status": "COMPLETED",
+                "provider_model": "gemini-2.5-pro",
+                "facts": [
+                    {
+                        "field": "company_name",
+                        "value": "Idempotent Solar Ltd",
+                        "source_page": 1,
+                        "source_text": "Company: Idempotent Solar Ltd",
+                        "confidence": 0.98,
+                    },
+                    {
+                        "field": "gstin",
+                        "value": "29ABCDE5678K1Z1",
+                        "source_page": 1,
+                        "source_text": "GSTIN: 29ABCDE5678K1Z1",
+                        "confidence": 0.99,
+                    },
+                    {
+                        "field": "pan",
+                        "value": "ABCDE5678K",
+                        "source_page": 1,
+                        "source_text": "PAN: ABCDE5678K",
+                        "confidence": 0.97,
+                    },
+                ],
+            },
+        )
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", mock_extract_post)
+
+    # First document processing pass
+    run1_res = client.post(f"/api/v1/bidders/{bidder_id}/process-documents", headers=headers)
+    assert run1_res.status_code == 200
+    assert run1_res.json()["status"] == JobStatus.COMPLETED.value
+
+    db: Session = next(get_db())
+    try:
+        facts_run1 = db.query(ExtractedFact).filter(ExtractedFact.document_id == doc_id).all()
+        count_run1 = len(facts_run1)
+        assert count_run1 == 3
+    finally:
+        db.close()
+
+    # Second document processing pass on unchanged document
+    run2_res = client.post(f"/api/v1/bidders/{bidder_id}/process-documents", headers=headers)
+    assert run2_res.status_code == 200
+    assert run2_res.json()["status"] == JobStatus.COMPLETED.value
+
+    db2: Session = next(get_db())
+    try:
+        facts_run2 = db2.query(ExtractedFact).filter(ExtractedFact.document_id == doc_id).all()
+        count_run2 = len(facts_run2)
+
+        # Invariant: fact count after run 1 == fact count after run 2
+        assert count_run1 == count_run2, f"Fact drift detected: run1={count_run1} != run2={count_run2}"
+
+        # Group by canonical field and normalized value to assert 0 duplicates
+        grouped = {}
+        for f in facts_run2:
+            canon = resolve_canonical_field(f.field)
+            val = str(f.value).strip().lower()
+            grouped.setdefault((canon, val), []).append(f.id)
+
+        assert len(grouped) == count_run2, f"Duplicate facts detected in run 2: {grouped}"
+        assert all(len(ids) == 1 for ids in grouped.values())
+    finally:
+        db2.close()
+
+
+
 
