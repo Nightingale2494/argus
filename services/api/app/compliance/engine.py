@@ -22,21 +22,7 @@ from app.schemas.canonical import (
 )
 
 
-@dataclass(frozen=True)
-class FinancialContext:
-    """Typed financial and numeric context for exact, safe comparisons."""
-
-    raw_value: Any
-    base_decimal_value: Decimal | None
-    currency: str | None
-    scale_token: str | None
-    scale_multiplier: Decimal
-    metric: str | None
-    financial_year: str | None
-    averaging_period: str | None
-    is_base_unit: bool
-    is_valid: bool
-    error_reason: str | None = None
+from app.compliance.financial_parser import FinancialContext, parse_financial_context
 
 
 class ComplianceEngine:
@@ -324,303 +310,8 @@ class ComplianceEngine:
         Derives scale from explicit representation only. Never blindly applies rule default_unit to inputs.
         Recognizes already-normalized base-unit values and avoids double scaling.
         """
-        meta = meta or {}
-        if val is None:
-            return FinancialContext(
-                raw_value=val,
-                base_decimal_value=None,
-                currency=meta.get("currency"),
-                scale_token=None,
-                scale_multiplier=Decimal("1"),
-                metric=meta.get("metric"),
-                financial_year=meta.get("financial_year") or meta.get("fy"),
-                averaging_period=meta.get("averaging_period") or meta.get("period"),
-                is_base_unit=False,
-                is_valid=False,
-                error_reason=ReasonCode.OBSERVED_VALUE_NULL,
-            )
+        return parse_financial_context(val, meta, default_unit=default_unit)
 
-        if isinstance(val, bool):
-            return FinancialContext(
-                raw_value=val,
-                base_decimal_value=None,
-                currency=meta.get("currency"),
-                scale_token=None,
-                scale_multiplier=Decimal("1"),
-                metric=meta.get("metric"),
-                financial_year=meta.get("financial_year") or meta.get("fy"),
-                averaging_period=meta.get("averaging_period") or meta.get("period"),
-                is_base_unit=False,
-                is_valid=False,
-                error_reason=ReasonCode.TYPE_CONVERSION_ERROR,
-            )
-
-        val_str = str(val).strip()
-        if len(val_str) > cls.MAX_INPUT_STR_LENGTH:
-            return FinancialContext(
-                raw_value=val,
-                base_decimal_value=None,
-                currency=meta.get("currency"),
-                scale_token=None,
-                scale_multiplier=Decimal("1"),
-                metric=meta.get("metric"),
-                financial_year=meta.get("financial_year") or meta.get("fy"),
-                averaging_period=meta.get("averaging_period") or meta.get("period"),
-                is_base_unit=False,
-                is_valid=False,
-                error_reason=ReasonCode.MALFORMED_NUMBER,
-            )
-
-        val_lower = val_str.lower()
-        if val_lower in ("nan", "inf", "-inf", "+inf", "infinity", "-infinity", "+infinity"):
-            return FinancialContext(
-                raw_value=val,
-                base_decimal_value=None,
-                currency=meta.get("currency"),
-                scale_token=None,
-                scale_multiplier=Decimal("1"),
-                metric=meta.get("metric"),
-                financial_year=meta.get("financial_year") or meta.get("fy"),
-                averaging_period=meta.get("averaging_period") or meta.get("period"),
-                is_base_unit=False,
-                is_valid=False,
-                error_reason=ReasonCode.MALFORMED_NUMBER,
-            )
-
-        # 1. Currency resolution
-        meta_curr = meta.get("currency")
-        input_meta_unit = meta.get("unit") or default_unit
-        if not meta_curr and input_meta_unit and isinstance(input_meta_unit, str):
-            unit_u = input_meta_unit.upper()
-            if "INR" in unit_u or "RS" in unit_u or "₹" in input_meta_unit:
-                meta_curr = "INR"
-            elif "USD" in unit_u or "$" in input_meta_unit:
-                meta_curr = "USD"
-            elif "EUR" in unit_u or "€" in input_meta_unit:
-                meta_curr = "EUR"
-            elif "GBP" in unit_u or "£" in input_meta_unit:
-                meta_curr = "GBP"
-
-        text_curr = None
-        if "$" in val_str or re.search(r"\b(usd)\b", val_lower):
-            text_curr = "USD"
-        elif "₹" in val_str or re.search(r"\b(inr|rs\.?|rupees?)\b", val_lower):
-            text_curr = "INR"
-        elif "€" in val_str or re.search(r"\b(eur|euros?)\b", val_lower):
-            text_curr = "EUR"
-        elif "£" in val_str or re.search(r"\b(gbp|pounds?)\b", val_lower):
-            text_curr = "GBP"
-
-        # Check currency contradiction between metadata and text
-        if meta_curr and text_curr and meta_curr.upper() != text_curr.upper():
-            return FinancialContext(
-                raw_value=val,
-                base_decimal_value=None,
-                currency=meta_curr,
-                scale_token=None,
-                scale_multiplier=Decimal("1"),
-                metric=meta.get("metric"),
-                financial_year=meta.get("financial_year") or meta.get("fy"),
-                averaging_period=meta.get("averaging_period") or meta.get("period"),
-                is_base_unit=False,
-                is_valid=False,
-                error_reason=ReasonCode.CURRENCY_MISMATCH,
-            )
-
-        resolved_currency = (meta_curr or text_curr or "").upper() or None
-
-        # 2. Base-unit representation check
-        is_base_unit = False
-        has_explicit_base_flag = False
-        for flag_name in ("is_base_unit", "normalized", "is_normalized"):
-            if flag_name in meta and meta[flag_name] is not None:
-                parsed_flag = cls._parse_boolean_strict(meta[flag_name])
-                if parsed_flag is None:
-                    return FinancialContext(
-                        raw_value=val,
-                        base_decimal_value=None,
-                        currency=resolved_currency,
-                        scale_token=None,
-                        scale_multiplier=Decimal("1"),
-                        metric=meta.get("metric"),
-                        financial_year=meta.get("financial_year") or meta.get("fy"),
-                        averaging_period=meta.get("averaging_period") or meta.get("period"),
-                        is_base_unit=False,
-                        is_valid=False,
-                        error_reason=ReasonCode.MALFORMED_NUMBER,
-                    )
-                has_explicit_base_flag = True
-                if parsed_flag is True:
-                    is_base_unit = True
-
-        if not has_explicit_base_flag and meta.get("unit"):
-            unit_str_val = str(meta.get("unit")).strip().upper()
-            if unit_str_val in ("INR", "USD", "EUR", "GBP", "BASE", "UNITS"):
-                is_base_unit = True
-
-        # 3. Scale resolution
-        meta_scale = Decimal("1")
-        canonical_meta_unit = None
-        input_meta_unit = meta.get("unit") or default_unit
-        if input_meta_unit and isinstance(input_meta_unit, str) and not is_base_unit:
-            unit_clean = input_meta_unit.lower().strip()
-            for c_token in ("inr", "usd", "eur", "gbp", "₹", "$", "€", "£"):
-                unit_clean = unit_clean.replace(c_token, "").strip()
-            if unit_clean in cls.UNIT_SCALE_MAP:
-                meta_scale, canonical_meta_unit = cls.UNIT_SCALE_MAP[unit_clean]
-            elif unit_clean:
-                # Unsupported unit scale in metadata
-                return FinancialContext(
-                    raw_value=val,
-                    base_decimal_value=None,
-                    currency=resolved_currency,
-                    scale_token=input_meta_unit.strip(),
-                    scale_multiplier=Decimal("1"),
-                    metric=meta.get("metric"),
-                    financial_year=meta.get("financial_year") or meta.get("fy"),
-                    averaging_period=meta.get("averaging_period") or meta.get("period"),
-                    is_base_unit=is_base_unit,
-                    is_valid=False,
-                    error_reason=ReasonCode.UNIT_MISMATCH,
-                )
-
-        text_scale = Decimal("1")
-        canonical_text_unit = None
-        for scale_token, (scale_factor, canon_name) in cls.UNIT_SCALE_MAP.items():
-            pattern = r"\b" + re.escape(scale_token) + r"\b"
-            if re.search(pattern, val_lower):
-                text_scale = scale_factor
-                canonical_text_unit = canon_name
-                break
-
-        # Check scale contradiction between metadata and text
-        if (
-            canonical_meta_unit
-            and canonical_text_unit
-            and canonical_meta_unit.lower() != canonical_text_unit.lower()
-        ):
-            return FinancialContext(
-                raw_value=val,
-                base_decimal_value=None,
-                currency=resolved_currency,
-                scale_token=canonical_meta_unit,
-                scale_multiplier=Decimal("1"),
-                metric=meta.get("metric"),
-                financial_year=meta.get("financial_year") or meta.get("fy"),
-                averaging_period=meta.get("averaging_period") or meta.get("period"),
-                is_base_unit=is_base_unit,
-                is_valid=False,
-                error_reason=ReasonCode.UNIT_MISMATCH,
-            )
-
-        resolved_scale_token = canonical_text_unit or canonical_meta_unit
-        if is_base_unit:
-            scale_multiplier = Decimal("1")
-        else:
-            scale_multiplier = text_scale if canonical_text_unit else (meta_scale if canonical_meta_unit else Decimal("1"))
-
-        # 4. Numeric base value extraction
-        clean_s = val_str
-        tokens_to_remove = [
-            "USD", "usd", "$", "INR", "inr", "₹", "Rs.", "rs.", "Rs", "rs", "EUR", "eur", "GBP", "gbp", "Rupees", "rupees",
-            "crore", "crores", "cr.", "cr", "lakh", "lakhs", "lac", "lacs", "billion", "billions", "bn", "million", "millions", "mn", "thousand", "thousands", "k"
-        ]
-        for token in tokens_to_remove:
-            if token in ("$", "₹", "€", "£"):
-                clean_s = clean_s.replace(token, "")
-            else:
-                clean_s = re.sub(r"\b" + re.escape(token) + r"\b", "", clean_s, flags=re.IGNORECASE)
-
-        if not cls._validate_comma_formatting(clean_s.strip()):
-            return FinancialContext(
-                raw_value=val,
-                base_decimal_value=None,
-                currency=resolved_currency,
-                scale_token=resolved_scale_token,
-                scale_multiplier=scale_multiplier,
-                metric=meta.get("metric"),
-                financial_year=meta.get("financial_year") or meta.get("fy"),
-                averaging_period=meta.get("averaging_period") or meta.get("period"),
-                is_base_unit=is_base_unit,
-                is_valid=False,
-                error_reason=ReasonCode.MALFORMED_NUMBER,
-            )
-
-        clean_s = clean_s.replace(",", "").strip()
-        if not clean_s:
-            return FinancialContext(
-                raw_value=val,
-                base_decimal_value=None,
-                currency=resolved_currency,
-                scale_token=resolved_scale_token,
-                scale_multiplier=scale_multiplier,
-                metric=meta.get("metric"),
-                financial_year=meta.get("financial_year") or meta.get("fy"),
-                averaging_period=meta.get("averaging_period") or meta.get("period"),
-                is_base_unit=is_base_unit,
-                is_valid=False,
-                error_reason=ReasonCode.MALFORMED_NUMBER,
-            )
-
-        try:
-            base_dec = Decimal(clean_s)
-            if base_dec.is_nan() or base_dec.is_infinite():
-                return FinancialContext(
-                    raw_value=val,
-                    base_decimal_value=None,
-                    currency=resolved_currency,
-                    scale_token=resolved_scale_token,
-                    scale_multiplier=scale_multiplier,
-                    metric=meta.get("metric"),
-                    financial_year=meta.get("financial_year") or meta.get("fy"),
-                    averaging_period=meta.get("averaging_period") or meta.get("period"),
-                    is_base_unit=is_base_unit,
-                    is_valid=False,
-                    error_reason=ReasonCode.MALFORMED_NUMBER,
-                )
-            if abs(base_dec.as_tuple().exponent) > cls.MAX_DECIMAL_EXPONENT or len(base_dec.as_tuple().digits) > cls.MAX_DECIMAL_DIGITS:
-                return FinancialContext(
-                    raw_value=val,
-                    base_decimal_value=None,
-                    currency=resolved_currency,
-                    scale_token=resolved_scale_token,
-                    scale_multiplier=scale_multiplier,
-                    metric=meta.get("metric"),
-                    financial_year=meta.get("financial_year") or meta.get("fy"),
-                    averaging_period=meta.get("averaging_period") or meta.get("period"),
-                    is_base_unit=is_base_unit,
-                    is_valid=False,
-                    error_reason=ReasonCode.MALFORMED_NUMBER,
-                )
-
-            scaled_base_value = base_dec * scale_multiplier
-            return FinancialContext(
-                raw_value=val,
-                base_decimal_value=scaled_base_value,
-                currency=resolved_currency,
-                scale_token=resolved_scale_token,
-                scale_multiplier=scale_multiplier,
-                metric=meta.get("metric"),
-                financial_year=meta.get("financial_year") or meta.get("fy"),
-                averaging_period=meta.get("averaging_period") or meta.get("period"),
-                is_base_unit=is_base_unit,
-                is_valid=True,
-                error_reason=None,
-            )
-        except (InvalidOperation, TypeError, ValueError):
-            return FinancialContext(
-                raw_value=val,
-                base_decimal_value=None,
-                currency=resolved_currency,
-                scale_token=resolved_scale_token,
-                scale_multiplier=scale_multiplier,
-                metric=meta.get("metric"),
-                financial_year=meta.get("financial_year") or meta.get("fy"),
-                averaging_period=meta.get("averaging_period") or meta.get("period"),
-                is_base_unit=is_base_unit,
-                is_valid=False,
-                error_reason=ReasonCode.MALFORMED_NUMBER,
-            )
 
     @classmethod
     def _parse_currency_and_scale(
@@ -1354,44 +1045,85 @@ class ComplianceEngine:
         if facts_with_val and verified_with_val:
             claimed_val = facts_with_val[0].value
             raw_verified_val = verified_with_val[0].verified_value
+            ver_result = verified_with_val[0]
 
-            resolved_verified_val, is_unambiguous, ver_meta = cls._resolve_scalar(raw_verified_val)
-            if not is_unambiguous:
-                return RuleEvaluationRead(
-                    id=eval_id,
-                    bidder_id=context.get("bidder_id", "UNKNOWN_BIDDER"),
-                    requirement_id=rule.id,
-                    status=ComplianceStatus.REVIEW_REQUIRED,
-                    reason_code=ReasonCode.AMBIGUOUS_VERIFIED_VALUE,
-                    observed_value={"claimed": claimed_val, "verified": raw_verified_val},
-                    expected_value=rule.expected_value,
-                    evidence_ids=[facts_with_val[0].id, verified_with_val[0].id],
-                    rule_version=f"{cls.ENGINE_VERSION}",
-                    evaluated_at=eval_ts,
-                )
+            if rule.operator == OperatorEnum.EXISTS:
+                # For EXISTS requirements:
+                # If VerificationResult explicitly records claimed_value != fact value, flag mismatch
+                ver_claimed = getattr(ver_result, "claimed_value", None)
+                if ver_claimed is not None and not cls._values_equivalent(
+                    claimed_val,
+                    ver_claimed,
+                    meta_a=getattr(facts_with_val[0], "metadata_json", {}) or {},
+                    unit=rule.unit,
+                    case_insensitive=is_ci,
+                    rule=rule,
+                ):
+                    return RuleEvaluationRead(
+                        id=eval_id,
+                        bidder_id=context.get("bidder_id", "UNKNOWN_BIDDER"),
+                        requirement_id=rule.id,
+                        status=ComplianceStatus.REVIEW_REQUIRED,
+                        reason_code=ReasonCode.CLAIM_VERIFICATION_MISMATCH,
+                        observed_value={"claimed": claimed_val, "verified": ver_claimed},
+                        expected_value=rule.expected_value,
+                        evidence_ids=[facts_with_val[0].id, ver_result.id],
+                        rule_version=f"{cls.ENGINE_VERSION}",
+                        evaluated_at=eval_ts,
+                    )
+                if ver_result.status == VerificationStatus.UNVERIFIED:
+                    return RuleEvaluationRead(
+                        id=eval_id,
+                        bidder_id=context.get("bidder_id", "UNKNOWN_BIDDER"),
+                        requirement_id=rule.id,
+                        status=ComplianceStatus.REVIEW_REQUIRED,
+                        reason_code=ReasonCode.VERIFICATION_MISMATCH,
+                        observed_value={"claimed": claimed_val, "verified": raw_verified_val},
+                        expected_value=rule.expected_value,
+                        evidence_ids=[facts_with_val[0].id, ver_result.id],
+                        rule_version=f"{cls.ENGINE_VERSION}",
+                        evaluated_at=eval_ts,
+                    )
+                # If ver_result.status == VerificationStatus.VERIFIED, bypass scalar equality check
+                # and allow PRECEDENCE 6 to evaluate EXISTS cleanly.
+            else:
+                resolved_verified_val, is_unambiguous, ver_meta = cls._resolve_scalar(raw_verified_val)
+                if not is_unambiguous:
+                    return RuleEvaluationRead(
+                        id=eval_id,
+                        bidder_id=context.get("bidder_id", "UNKNOWN_BIDDER"),
+                        requirement_id=rule.id,
+                        status=ComplianceStatus.REVIEW_REQUIRED,
+                        reason_code=ReasonCode.AMBIGUOUS_VERIFIED_VALUE,
+                        observed_value={"claimed": claimed_val, "verified": raw_verified_val},
+                        expected_value=rule.expected_value,
+                        evidence_ids=[facts_with_val[0].id, verified_with_val[0].id],
+                        rule_version=f"{cls.ENGINE_VERSION}",
+                        evaluated_at=eval_ts,
+                    )
 
-            fact_meta = getattr(facts_with_val[0], "metadata_json", {}) or {}
-            if not cls._values_equivalent(
-                claimed_val,
-                resolved_verified_val,
-                meta_a=fact_meta,
-                meta_b=ver_meta,
-                unit=rule.unit,
-                case_insensitive=is_ci,
-                rule=rule,
-            ):
-                return RuleEvaluationRead(
-                    id=eval_id,
-                    bidder_id=context.get("bidder_id", "UNKNOWN_BIDDER"),
-                    requirement_id=rule.id,
-                    status=ComplianceStatus.REVIEW_REQUIRED,
-                    reason_code=ReasonCode.CLAIM_VERIFICATION_MISMATCH,
-                    observed_value={"claimed": claimed_val, "verified": resolved_verified_val},
-                    expected_value=rule.expected_value,
-                    evidence_ids=[facts_with_val[0].id, verified_with_val[0].id],
-                    rule_version=f"{cls.ENGINE_VERSION}",
-                    evaluated_at=eval_ts,
-                )
+                fact_meta = getattr(facts_with_val[0], "metadata_json", {}) or {}
+                if not cls._values_equivalent(
+                    claimed_val,
+                    resolved_verified_val,
+                    meta_a=fact_meta,
+                    meta_b=ver_meta,
+                    unit=rule.unit,
+                    case_insensitive=is_ci,
+                    rule=rule,
+                ):
+                    return RuleEvaluationRead(
+                        id=eval_id,
+                        bidder_id=context.get("bidder_id", "UNKNOWN_BIDDER"),
+                        requirement_id=rule.id,
+                        status=ComplianceStatus.REVIEW_REQUIRED,
+                        reason_code=ReasonCode.CLAIM_VERIFICATION_MISMATCH,
+                        observed_value={"claimed": claimed_val, "verified": resolved_verified_val},
+                        expected_value=rule.expected_value,
+                        evidence_ids=[facts_with_val[0].id, verified_with_val[0].id],
+                        rule_version=f"{cls.ENGINE_VERSION}",
+                        evaluated_at=eval_ts,
+                    )
         # PRECEDENCE 5.5: Low-confidence extracted evidence guard.
         #
         # Applies only when the outcome would rest SOLELY on an extracted fact —
@@ -1436,17 +1168,30 @@ class ComplianceEngine:
 
         if rule.operator == OperatorEnum.EXISTS:
             if has_usable_evidence:
-                raw_obs_val = verified_with_val[0].verified_value if verified_with_val else facts_with_val[0].value
-                resolved_obs_val, _, _ = cls._resolve_scalar(raw_obs_val)
+                if facts_with_val and verified_with_val:
+                    evidence_ids = [facts_with_val[0].id, verified_with_val[0].id]
+                    obs_val = {
+                        "claimed": facts_with_val[0].value,
+                        "verified": verified_with_val[0].verified_value,
+                    }
+                elif verified_with_val:
+                    evidence_ids = [verified_with_val[0].id]
+                    resolved_obs_val, is_unambiguous, _ = cls._resolve_scalar(verified_with_val[0].verified_value)
+                    obs_val = resolved_obs_val if is_unambiguous else verified_with_val[0].verified_value
+                else:
+                    evidence_ids = [facts_with_val[0].id]
+                    resolved_obs_val, is_unambiguous, _ = cls._resolve_scalar(facts_with_val[0].value)
+                    obs_val = resolved_obs_val if is_unambiguous else facts_with_val[0].value
+
                 return RuleEvaluationRead(
                     id=eval_id,
                     bidder_id=context.get("bidder_id", "UNKNOWN_BIDDER"),
                     requirement_id=rule.id,
                     status=ComplianceStatus.PASS,
                     reason_code=ReasonCode.EVIDENCE_EXISTS,
-                    observed_value=resolved_obs_val if resolved_obs_val is not None else True,
+                    observed_value=obs_val if obs_val is not None else True,
                     expected_value=True,
-                    evidence_ids=primary_input_ids,
+                    evidence_ids=evidence_ids,
                     rule_version=f"{cls.ENGINE_VERSION}",
                     evaluated_at=eval_ts,
                 )

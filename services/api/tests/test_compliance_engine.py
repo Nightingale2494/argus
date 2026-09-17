@@ -63,12 +63,13 @@ def make_verification(
     verified_value: any = None,
     field: str = "financial.average_annual_turnover",
     ver_id: str = "VER-001",
+    claimed_value: any = None,
 ) -> VerificationResultRead:
     return VerificationResultRead(
         id=ver_id,
         bidder_id="BIDDER-001",
         field=field,
-        claimed_value=150000000,
+        claimed_value=claimed_value if claimed_value is not None else (150000000 if "financial" in field else None),
         verified_value=verified_value,
         status=status,
         source=VerificationSource.GST_DEMO_DATA,
@@ -406,3 +407,90 @@ def test_unsupported_operator_behavior():
     res = ComplianceEngine.evaluate(req, [make_fact(100)], [])
     assert res.status == ComplianceStatus.UNKNOWN
     assert res.reason_code == "UNSUPPORTED_OPERATOR"
+
+
+def test_gst_structured_verification_pass():
+    req = make_requirement(OperatorEnum.EXISTS, True, field="tax.gstin", mandatory=True)
+    fact = make_fact("29ABCDE5678K1Z1", field="tax.gstin", fact_id="FACT-GST-1")
+    ver = make_verification(
+        VerificationStatus.VERIFIED,
+        verified_value={"status": "ACTIVE", "verified_entity": "Surya Tech Energy Solutions Pvt Ltd"},
+        field="tax.gstin",
+        ver_id="VER-GST-1",
+        claimed_value="29ABCDE5678K1Z1",
+    )
+    res = ComplianceEngine.evaluate(req, [fact], [ver])
+    assert res.status == ComplianceStatus.PASS
+    assert res.reason_code == "EVIDENCE_EXISTS"
+    assert "FACT-GST-1" in res.evidence_ids
+    assert "VER-GST-1" in res.evidence_ids
+    assert isinstance(res.observed_value, dict)
+    assert res.observed_value["claimed"] == "29ABCDE5678K1Z1"
+
+
+def test_gst_verification_mismatch_review_required():
+    req = make_requirement(OperatorEnum.EXISTS, True, field="tax.gstin", mandatory=True)
+    fact = make_fact("29ABCDE5678K1Z1", field="tax.gstin", fact_id="FACT-GST-1")
+    ver = make_verification(
+        VerificationStatus.MISMATCH,
+        verified_value={"status": "ACTIVE", "verified_entity": "Different Entity"},
+        field="tax.gstin",
+        ver_id="VER-GST-1",
+        claimed_value="29ABCDE5678K1Z1",
+    )
+    res = ComplianceEngine.evaluate(req, [fact], [ver])
+    assert res.status == ComplianceStatus.REVIEW_REQUIRED
+    assert res.reason_code in ("CLAIM_VERIFICATION_MISMATCH", "VERIFICATION_MISMATCH")
+
+
+def test_gst_verification_unavailable_unknown():
+    req = make_requirement(OperatorEnum.EXISTS, True, field="tax.gstin", mandatory=True)
+    fact = make_fact("29ABCDE5678K1Z1", field="tax.gstin", fact_id="FACT-GST-1")
+    ver = make_verification(
+        VerificationStatus.UNAVAILABLE,
+        verified_value=None,
+        field="tax.gstin",
+        ver_id="VER-GST-1",
+        claimed_value="29ABCDE5678K1Z1",
+    )
+    res = ComplianceEngine.evaluate(req, [fact], [ver])
+    assert res.status == ComplianceStatus.UNKNOWN
+    assert res.reason_code == "VERIFICATION_UNAVAILABLE"
+
+
+def test_gst_missing_evidence_unknown():
+    req = make_requirement(OperatorEnum.EXISTS, True, field="tax.gstin", mandatory=True)
+    res = ComplianceEngine.evaluate(req, [], [])
+    assert res.status == ComplianceStatus.UNKNOWN
+    assert res.reason_code == "MISSING_EVIDENCE"
+
+
+def test_turnover_with_parenthetical_qualifier_gte_pass():
+    req = make_requirement(OperatorEnum.GTE, 85000000, field="financial.average_annual_turnover")
+    fact = make_fact("Rs. 11.6 crore (3-year average)", field="financial.average_annual_turnover")
+    res = ComplianceEngine.evaluate(req, [fact], [])
+    assert res.status == ComplianceStatus.PASS
+    assert res.reason_code == "GREATER_THAN_OR_EQUAL"
+
+
+def test_turnover_crore_comparison_lte_fail():
+    req = make_requirement(OperatorEnum.GTE, "₹8.5 crore", field="financial.average_annual_turnover")
+    fact = make_fact("₹7 crore", field="financial.average_annual_turnover")
+    res = ComplianceEngine.evaluate(req, [fact], [])
+    assert res.status == ComplianceStatus.FAIL
+    assert res.reason_code == "LESS_THAN"
+
+
+def test_non_exists_operator_on_structured_verified_value_fails_closed():
+    req = make_requirement(OperatorEnum.EQ, "Surya Tech", field="company.profile")
+    fact = make_fact("Surya Tech", field="company.profile")
+    ver = make_verification(
+        VerificationStatus.VERIFIED,
+        verified_value={"status": "ACTIVE", "verified_entity": "Surya Tech"},
+        field="company.profile",
+        ver_id="VER-PROF-1",
+        claimed_value="Surya Tech",
+    )
+    res = ComplianceEngine.evaluate(req, [fact], [ver])
+    assert res.status == ComplianceStatus.REVIEW_REQUIRED
+    assert res.reason_code == "AMBIGUOUS_VERIFIED_VALUE"

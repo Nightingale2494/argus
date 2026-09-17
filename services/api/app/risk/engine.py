@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.compliance.engine import ComplianceEngine
+from app.compliance.financial_parser import parse_financial_context
 from app.schemas.canonical import (
     FactRead,
     RiskInputRef,
@@ -249,89 +250,16 @@ class RiskEngine:
         Parses currency, unit/scale, and numeric base value from string or metadata.
         Returns: (currency, unit, scaled_value, is_explicit_unit)
         """
-        currency = meta.get("currency")
-        meta_unit = meta.get("unit")
+        ctx = parse_financial_context(val, meta)
+        if not ctx.is_valid or ctx.base_decimal_value is None:
+            unit = ctx.scale_token
+            is_explicit = bool(unit)
+            return ctx.currency, unit, None, is_explicit
+        f_val = float(ctx.base_decimal_value)
+        if math.isnan(f_val) or math.isinf(f_val):
+            return ctx.currency, ctx.scale_token, None, bool(ctx.scale_token)
+        return ctx.currency, ctx.scale_token, f_val, bool(ctx.scale_token)
 
-        val_str = str(val) if val is not None else ""
-        val_lower = val_str.lower().strip()
-
-        # Currency detection
-        text_curr = None
-        if "$" in val_str or re.search(r'\b(usd)\b', val_lower):
-            text_curr = "USD"
-        elif "₹" in val_str or re.search(r'\b(inr|rs\.?|rupees?)\b', val_lower):
-            text_curr = "INR"
-
-        if currency and text_curr and currency.upper() != text_curr.upper():
-            return None, meta_unit, None, bool(meta_unit)
-
-        currency = currency or text_curr
-
-        # Check base unit flag
-        is_base_unit = bool(
-            meta.get("is_base_unit")
-            or meta.get("normalized")
-            or meta.get("is_normalized")
-            or (meta_unit and str(meta_unit).upper() in ("INR", "USD", "EUR", "GBP", "BASE", "UNITS"))
-        )
-
-        # Unit / Scale resolution from metadata
-        meta_scale = 1.0
-        canonical_meta_unit = None
-        if meta_unit and isinstance(meta_unit, str) and not is_base_unit:
-            meta_unit_clean = meta_unit.lower().strip()
-            if meta_unit_clean in cls.UNIT_SCALE_MAP:
-                meta_scale, canonical_meta_unit = cls.UNIT_SCALE_MAP[meta_unit_clean]
-            else:
-                canonical_meta_unit = meta_unit.strip()
-
-        # Unit / Scale resolution from text
-        text_scale = 1.0
-        canonical_text_unit = None
-        if re.search(r'\b(crores?|cr)\b', val_lower):
-            text_scale, canonical_text_unit = cls.UNIT_SCALE_MAP["crore"]
-        elif re.search(r'\b(lakhs?|lacs?)\b', val_lower):
-            text_scale, canonical_text_unit = cls.UNIT_SCALE_MAP["lakh"]
-        elif re.search(r'\b(billions?|bn)\b', val_lower):
-            text_scale, canonical_text_unit = cls.UNIT_SCALE_MAP["billion"]
-        elif re.search(r'\b(millions?|mn)\b', val_lower):
-            text_scale, canonical_text_unit = cls.UNIT_SCALE_MAP["million"]
-
-        # Check unit contradiction between metadata and text
-        if canonical_meta_unit and canonical_text_unit and canonical_meta_unit.lower() != canonical_text_unit.lower():
-            return currency, canonical_meta_unit, None, True
-
-        resolved_unit = canonical_meta_unit or canonical_text_unit
-        scale = meta_scale if canonical_meta_unit else (text_scale if canonical_text_unit else 1.0)
-        is_explicit = bool(resolved_unit)
-
-        val_to_parse: Any = val
-        if isinstance(val, str):
-            clean_s = val
-            tokens_to_remove = [
-                "USD", "usd", "$", "INR", "inr", "₹", "Rs.", "rs.", "Rs", "rs", "EUR", "eur", "GBP", "gbp", "Rupees", "rupees",
-                "crore", "crores", "cr", "lakh", "lakhs", "lac", "lacs", "billion", "billions", "bn", "million", "millions", "mn"
-            ]
-            for token in tokens_to_remove:
-                if token in ("$", "₹"):
-                    clean_s = clean_s.replace(token, "")
-                else:
-                    clean_s = re.sub(r'\b' + re.escape(token) + r'\b', '', clean_s, flags=re.IGNORECASE)
-            clean_s = clean_s.replace(",", "").strip()
-            val_to_parse = clean_s
-
-        raw_num = ComplianceEngine._normalize_number(val_to_parse)
-        if raw_num is None:
-            return currency, resolved_unit, None, is_explicit
-        try:
-            f_num = float(raw_num)
-            if math.isnan(f_num) or math.isinf(f_num):
-                return currency, resolved_unit, None, is_explicit
-        except (ValueError, TypeError, OverflowError):
-            return currency, resolved_unit, None, is_explicit
-
-        scaled_val = float(Decimal(str(raw_num)) * Decimal(str(scale)))
-        return currency, resolved_unit, scaled_val, is_explicit
 
     @classmethod
     def _check_cross_document_financials(
