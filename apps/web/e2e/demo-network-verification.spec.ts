@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import crypto from 'crypto';
 
 function createDemoToken(): string {
-  const secret = process.env.ARGUS_JWT_SECRET || 'f306cdf1dcaee62e9fe0b58a2d056950a87275fe3ded03bc0e3786c44227cab9';
+  const secret = process.env.ARGUS_JWT_SECRET || '';
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: 'HS256', typ: 'JWT' };
   const payload = {
