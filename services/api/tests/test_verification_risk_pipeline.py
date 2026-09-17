@@ -13,6 +13,7 @@ from app.models.domain import (
     HumanDecision,
     HumanDecisionStatus,
     JobStatus,
+    ProcessingJob,
     RiskSignal,
     Tender,
     TenderRequirement,
@@ -22,6 +23,7 @@ from app.risk.engine import RiskEngine, RiskSignalCandidate
 from app.schemas.canonical import (
     ComplianceStatus,
     FactRead,
+    JobStage,
     OperatorEnum,
     ProviderConfigurationStatus,
     ProviderOperationalHealth,
@@ -1032,5 +1034,104 @@ def test_persisted_typed_risk_input_references(db_session: Session):
     doc_ref = [r for r in reconstructed_read.input_refs if r.ref_type == RiskInputType.DOCUMENT][0]
     assert doc_ref.id == "doc-ref-100"
     assert doc_ref.metadata.get("filename") == "audit.pdf"
+
+
+@pytest.mark.asyncio
+async def test_verification_job_status_is_completed_when_compliance_outcome_is_review_required(db_session: Session):
+    """Verifies ProcessingJob.status transitions to COMPLETED (not REVIEW_REQUIRED)
+
+    while the underlying compliance evaluation outcome is cleanly recorded as
+    ComplianceStatus.REVIEW_REQUIRED.
+    """
+    eval_ts = datetime.now(timezone.utc)
+    t_id = f"t-job-sem-{uuid.uuid4().hex[:8]}"
+    b_id = f"b-job-sem-{uuid.uuid4().hex[:8]}"
+    job_id = f"job-sem-{uuid.uuid4().hex[:8]}"
+
+    tender = Tender(
+        id=t_id,
+        title="Job Semantics Test Tender",
+        tender_number=f"REF-{t_id}",
+        status=JobStatus.COMPLETED,
+        created_at=eval_ts,
+    )
+    # Requirement that requires verification and will trigger REVIEW_REQUIRED
+    req = TenderRequirement(
+        id=f"req-{t_id}",
+        tender_id=t_id,
+        requirement_type=RequirementType.TURNOVER,
+        field="financial.average_annual_turnover",
+        operator=OperatorEnum.GTE,
+        expected_value=50000000,
+        requires_verification=True,
+        is_approved=True,
+        clause="Turnover clause",
+        source_page=1,
+        source_text="Annual turnover must exceed 5 Cr",
+        created_at=eval_ts,
+    )
+    bidder = Bidder(
+        id=b_id,
+        tender_id=t_id,
+        bidder_name="Job Semantics Bidder Ltd",
+        gstin="29ABCDE1234F1Z5",
+        status=HumanDecisionStatus.PENDING,
+        created_at=eval_ts,
+    )
+    doc = Document(
+        id=f"doc-{b_id}",
+        tender_id=None,
+        bidder_id=b_id,
+        document_type=DocumentType.FINANCIAL_STATEMENT,
+        storage_uri="mock://storage/doc.pdf",
+        filename="doc.pdf",
+        sha256="0" * 64,
+        created_at=eval_ts,
+    )
+    fact = ExtractedFact(
+        id=f"fact-{b_id}",
+        document_id=doc.id,
+        bidder_id=b_id,
+        field="financial.average_annual_turnover",
+        value="Rs. 11.6 crore (3-year average)",
+        confidence=0.95,
+        created_at=eval_ts,
+    )
+    job = ProcessingJob(
+        id=job_id,
+        target_type="BIDDER",
+        target_id=b_id,
+        job_type="VERIFY_BIDDER",
+        status=JobStatus.RUNNING,
+        current_stage=JobStage.VERIFICATION,
+        progress=10,
+        started_at=eval_ts,
+    )
+    db_session.add_all([tender, req, bidder, doc, fact, job])
+    db_session.commit()
+
+    service = BidVerificationService(db_session)
+    await service.run_verification_workflow(
+        bidder_id=b_id,
+        job_id=job_id,
+        triggered_by="test-operator",
+        actor_id="test-operator",
+        actor_role="ADMIN",
+    )
+
+    db_session.refresh(job)
+    run = db_session.query(ComplianceRun).filter_by(bidder_id=b_id).order_by(ComplianceRun.created_at.desc()).first()
+
+    # Canonical ProcessingJob lifecycle invariant:
+    assert job.status == JobStatus.COMPLETED
+    assert job.status != JobStatus.REVIEW_REQUIRED
+    assert job.current_stage == JobStage.VERIFICATION
+    assert job.progress == 100
+    assert job.completed_at is not None
+
+    # Separate verification/compliance outcome:
+    assert run is not None
+    assert run.overall_status == ComplianceStatus.REVIEW_REQUIRED
+
 
 

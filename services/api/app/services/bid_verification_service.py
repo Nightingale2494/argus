@@ -871,8 +871,8 @@ class BidVerificationService:
 
             # Update job completion status in session
             if job:
-                job.status = JobStatus.COMPLETED if overall_status in (ComplianceStatus.PASS, ComplianceStatus.FAIL) else JobStatus.REVIEW_REQUIRED
-                job.current_stage = JobStage.REPORTING
+                job.status = JobStatus.COMPLETED
+                job.current_stage = JobStage.VERIFICATION
                 job.progress = 100
                 job.completed_at = datetime.now(timezone.utc)
 
