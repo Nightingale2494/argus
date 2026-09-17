@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import { X, AlertTriangle, ShieldAlert, CheckCircle2, ArrowRight } from 'lucide-react';
 import type { RiskSignalRead, RiskSeverity } from '@/types/api';
+import { formatDisplayValue } from '@/lib/formatters';
 
 export interface MismatchDetailItem {
   mismatch_type?: string;
@@ -126,8 +127,8 @@ export const MismatchDetailModal: React.FC<MismatchDetailModalProps> = ({
               {mismatches.map((item, idx) => {
                 const typeLabel = item.mismatch_type || 'CROSS_SOURCE_MISMATCH';
                 const fieldName = item.field || 'Not available';
-                const claimedVal = item.extracted_value !== undefined && item.extracted_value !== null ? String(item.extracted_value) : 'Not available';
-                const refVal = item.existing_value !== undefined && item.existing_value !== null ? String(item.existing_value) : 'Not available';
+                const claimedVal = formatDisplayValue(item.extracted_value, { fallback: 'Not available' });
+                const refVal = formatDisplayValue(item.existing_value, { fallback: 'Not available' });
                 const reasonText = item.reason || `Extracted document value ("${claimedVal}") conflicts with verified profile/reference value ("${refVal}").`;
                 const docName = item.source_filename || documentFilename || 'Not available';
                 const pageNum = item.source_page !== undefined && item.source_page !== null ? `Page ${item.source_page}` : 'Not available';

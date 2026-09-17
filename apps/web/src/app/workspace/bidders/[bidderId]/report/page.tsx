@@ -10,6 +10,7 @@ import { api } from "@/services/api";
 import { ReportRead } from "@/services/types";
 import { SessionRequired } from "@/components/ui/SessionRequired";
 import { useAuth } from "@/hooks/useAuth";
+import { formatDisplayValue, formatExpectedCondition } from "@/lib/formatters";
 
 export default function ReportPage() {
   const params = useParams();
@@ -290,7 +291,7 @@ export default function ReportPage() {
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-zinc-400 print:text-zinc-700">
-                      Claimed: {String(v.claimed_value ?? "—")} | Verified: {String(v.verified_value ?? "—")}
+                      Claimed: {formatDisplayValue(v.claimed_value, { fallback: "—" })} | Verified: {formatDisplayValue(v.verified_value, { fallback: "—" })}
                     </td>
                   </tr>
                 ))}
@@ -318,9 +319,15 @@ export default function ReportPage() {
                   <tr key={m.requirement_id || i}>
                     <td className="px-4 py-2.5 font-medium">{m.clause}</td>
                     <td className="px-4 py-2.5 font-mono">{m.requirement_type}</td>
-                    <td className="px-4 py-2.5 font-mono">{m.operator} {String(m.expected_value ?? "")}</td>
+                    <td className="px-4 py-2.5 font-mono">
+                      {formatExpectedCondition(m.operator, m.expected_value, {
+                        unit: m.unit,
+                        requirementType: m.requirement_type,
+                        field: m.field,
+                      })}
+                    </td>
                     <td className="px-4 py-2.5 font-mono text-blue-400 print:text-blue-700">
-                      {m.observed_value !== null && m.observed_value !== undefined ? String(m.observed_value) : "—"}
+                      {formatDisplayValue(m.observed_value, { fallback: "—" })}
                     </td>
                     <td className="px-4 py-2.5 font-bold">
                       {(m.status as string) === "NOT_APPLICABLE_EXEMPTION" || (m.status as string).includes("EXEMPT") ? (

@@ -4,6 +4,8 @@ import React from 'react';
 import { X, FileText, ShieldCheck } from 'lucide-react';
 import type { ComplianceMatrixRow, EvidenceRead } from '@/types/api';
 import { StatusBadge } from './StatusBadge';
+import { formatDisplayValue, formatExpectedCondition, isStructuredValue } from '../../lib/formatters';
+import { StructuredValueView } from './StructuredValueView';
 
 interface EvidenceDrawerProps {
   isOpen: boolean;
@@ -55,16 +57,29 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
               <StatusBadge status={row.status} size="sm" />
             </div>
             <p className="text-slate-300 font-mono">Field: {row.field}</p>
-            <div className="grid grid-cols-2 gap-2 text-slate-400 pt-2 border-t border-slate-800 font-mono">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-400 pt-2 border-t border-slate-800 font-mono">
               <div>
-                <p className="text-slate-500">Expected Value</p>
-                <p className="text-slate-200">{String(row.expected_value)}</p>
+                <p className="text-slate-500 text-[11px]">Expected Value</p>
+                <p className="text-slate-200 font-semibold break-words">
+                  {formatExpectedCondition(row.operator, row.expected_value, {
+                    unit: row.unit,
+                    requirementType: row.requirement_type,
+                    field: row.field,
+                  })}
+                </p>
               </div>
               <div>
-                <p className="text-slate-500">Observed Value</p>
-                <p className="text-slate-200">{String(row.observed_value ?? 'N/A')}</p>
+                <p className="text-slate-500 text-[11px]">Observed Value</p>
+                <p className="text-blue-300 font-semibold break-words">
+                  {formatDisplayValue(row.observed_value, { fallback: 'N/A' })}
+                </p>
               </div>
             </div>
+            {isStructuredValue(row.observed_value) && (
+              <div className="pt-2 border-t border-slate-800/80">
+                <StructuredValueView value={row.observed_value} label="Structured Verification Details" />
+              </div>
+            )}
           </div>
 
           {/* Engine Reason & Explanation */}

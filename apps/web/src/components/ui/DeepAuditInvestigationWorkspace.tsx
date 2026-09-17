@@ -23,6 +23,7 @@ import {
   ArrowUpRight,
   Filter,
 } from "lucide-react";
+import { formatDisplayValue } from "@/lib/formatters";
 import { api } from "@/services/api";
 import type {
   DeepAuditSynthesis,
@@ -923,7 +924,7 @@ export function DeepAuditInvestigationWorkspace({
                   <div className="rounded bg-slate-950 p-2 text-xs font-mono text-slate-400 flex flex-wrap gap-3">
                     {finding.evidence_provenance.map((ev, i) => (
                       <span key={i}>
-                        Doc: <strong className="text-slate-300">{ev.document_name}</strong> (p.{ev.page ?? "—"}): &ldquo;{ev.raw_value}&rdquo;
+                        Doc: <strong className="text-slate-300">{ev.document_name}</strong> (p.{ev.page ?? "—"}): &ldquo;{formatDisplayValue(ev.raw_value)}&rdquo;
                       </span>
                     ))}
                   </div>

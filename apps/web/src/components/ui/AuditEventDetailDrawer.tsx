@@ -18,6 +18,8 @@ import {
   Hash,
 } from 'lucide-react';
 import type { AuditEventRead } from '@/services/types';
+import { formatDisplayValue, formatExpectedCondition, isStructuredValue } from '@/lib/formatters';
+import { StructuredValueView } from './StructuredValueView';
 import {
   getResolvedJobId,
   isJobBackedEvent,
@@ -393,17 +395,27 @@ export const AuditEventDetailDrawer: React.FC<AuditEventDetailDrawerProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-xs">
                   <div className="p-3 rounded-lg bg-zinc-950/80 border border-zinc-800/80 space-y-1">
                     <span className="text-zinc-500 text-[11px] block">Expected Condition</span>
-                    <p className="text-zinc-200 font-semibold break-all">
-                      {String(payload.operator || '=')} {String(payload.expected_value ?? '—')}
+                    <p className="text-zinc-200 font-semibold break-words">
+                      {formatExpectedCondition(payload.operator as string, payload.expected_value, {
+                        unit: payload.unit as string,
+                        requirementType: payload.requirement_type as string,
+                        field: payload.field as string,
+                      })}
                     </p>
                   </div>
                   <div className="p-3 rounded-lg bg-zinc-950/80 border border-zinc-800/80 space-y-1">
                     <span className="text-zinc-500 text-[11px] block">Observed Verification Value</span>
-                    <p className="text-zinc-100 font-bold break-all">
-                      {String(payload.observed_value ?? '—')}
+                    <p className="text-blue-300 font-semibold break-words">
+                      {formatDisplayValue(payload.observed_value, { fallback: '—' })}
                     </p>
                   </div>
                 </div>
+
+                {isStructuredValue(payload.observed_value) && (
+                  <div className="pt-2 border-t border-zinc-800/80">
+                    <StructuredValueView value={payload.observed_value} label="Structured Observed Details" />
+                  </div>
+                )}
 
                 {/* Reason Code */}
                 {Boolean(payload.reason_code) && (

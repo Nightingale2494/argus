@@ -11,6 +11,7 @@ import { api } from "@/services/api";
 import { BidderRead, ComplianceMatrixRow, HumanDecisionCreate, HumanDecisionRead } from "@/services/types";
 import { SessionRequired } from "@/components/ui/SessionRequired";
 import { useAuth } from "@/hooks/useAuth";
+import { formatDisplayValue, formatExpectedCondition } from "@/lib/formatters";
 
 export default function HumanReviewPage() {
   const params = useParams();
@@ -214,10 +215,10 @@ export default function HumanReviewPage() {
                     {r.status}
                   </span>
                 </div>
-                <div className="flex gap-4 text-xs font-mono text-zinc-400">
+                <div className="flex gap-4 text-xs font-mono text-zinc-400 flex-wrap">
                   <span>Field: {r.field}</span>
-                  <span>Expected: {r.operator} {String(r.expected_value ?? "")}</span>
-                  <span>Observed: {String(r.observed_value ?? "None")}</span>
+                  <span>Expected: {formatExpectedCondition(r.operator, r.expected_value, { unit: r.unit, requirementType: r.requirement_type, field: r.field })}</span>
+                  <span className="text-blue-300">Observed: {formatDisplayValue(r.observed_value, { fallback: "None" })}</span>
                 </div>
                 {r.reason_code && (
                   <p className="text-xs text-zinc-400 italic">Flag rationale: {r.reason_code}</p>

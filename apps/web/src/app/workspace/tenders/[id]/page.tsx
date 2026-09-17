@@ -14,6 +14,7 @@ import { JobProgressDrawer } from "@/components/ui/JobProgressDrawer";
 import { SessionRequired } from "@/components/ui/SessionRequired";
 import { ClauseIntelligencePanel } from "@/components/ui/ClauseIntelligencePanel";
 import { useAuth } from "@/hooks/useAuth";
+import { formatExpectedCondition } from "@/lib/formatters";
 
 interface TenderWithFile extends TenderRead {
   attached_file?: {
@@ -506,8 +507,14 @@ export default function TenderDetailPage() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5 font-mono text-xs text-zinc-400">{r.field}</td>
-                      <td className="px-5 py-3.5 text-xs text-zinc-300">
-                        {r.operator} <span className="font-mono text-amber-300">{String(r.expected_value ?? "")}</span>
+                      <td className="px-5 py-3.5 text-xs font-mono text-zinc-300">
+                        <span className="text-amber-300">
+                          {formatExpectedCondition(r.operator, r.expected_value, {
+                            unit: r.unit,
+                            requirementType: r.requirement_type,
+                            field: r.field,
+                          })}
+                        </span>
                       </td>
                       <td className="px-5 py-3.5 text-xs">
                         {r.mandatory ? (

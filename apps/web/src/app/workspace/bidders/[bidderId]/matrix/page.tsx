@@ -12,6 +12,7 @@ import { ComplianceMatrixRow } from "@/services/types";
 import { EvidenceDrawer } from "@/components/ui/EvidenceDrawer";
 import { SessionRequired } from "@/components/ui/SessionRequired";
 import { useAuth } from "@/hooks/useAuth";
+import { formatDisplayValue, formatExpectedCondition } from "@/lib/formatters";
 
 export default function ComplianceMatrixPage() {
   const params = useParams();
@@ -283,10 +284,14 @@ export default function ComplianceMatrixPage() {
                       </span>
                     </td>
                     <td className="px-5 py-3.5 font-mono text-xs text-zinc-300">
-                      {row.operator} {String(row.expected_value ?? "")}
+                      {formatExpectedCondition(row.operator, row.expected_value, {
+                        unit: row.unit,
+                        requirementType: row.requirement_type,
+                        field: row.field,
+                      })}
                     </td>
                     <td className="px-5 py-3.5 font-mono text-xs text-blue-300">
-                      {row.observed_value !== null && row.observed_value !== undefined ? String(row.observed_value) : "—"}
+                      {formatDisplayValue(row.observed_value, { fallback: "—" })}
                     </td>
                     <td className="px-5 py-3.5">
                       {getStatusBadge(row.status, row.reason_code)}

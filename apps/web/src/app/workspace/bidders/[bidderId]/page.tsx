@@ -14,6 +14,7 @@ import { JobProgressDrawer } from "@/components/ui/JobProgressDrawer";
 import { SessionRequired } from "@/components/ui/SessionRequired";
 import { MismatchDetailModal, MismatchDetailItem } from "@/components/ui/MismatchDetailModal";
 import { useAuth } from "@/hooks/useAuth";
+import { formatDisplayValue } from "@/lib/formatters";
 
 interface BidderDocumentItem extends DocumentRead {
   status?: string;
@@ -624,7 +625,7 @@ export default function BidderDetailPage() {
                     <td className="px-5 py-3 font-medium text-zinc-200 font-mono text-xs">{v.field}</td>
                     <td className="px-5 py-3 font-mono text-xs text-zinc-400">{v.source}</td>
                     <td className="px-5 py-3 text-xs text-zinc-300">
-                      <span className="text-zinc-500">Claimed:</span> {String(v.claimed_value ?? "—")} | <span className="text-zinc-500">Verified:</span> {String(v.verified_value ?? "—")}
+                      <span className="text-zinc-500">Claimed:</span> {formatDisplayValue(v.claimed_value, { fallback: "—" })} | <span className="text-zinc-500">Verified:</span> {formatDisplayValue(v.verified_value, { fallback: "—" })}
                     </td>
                     <td className="px-5 py-3">{getStatusBadge(v.status)}</td>
                   </tr>

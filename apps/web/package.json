@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test": "sucrase-node src/lib/__tests__/formatters.test.ts && sucrase-node src/lib/__tests__/matrix_regression.test.tsx",
     "test:e2e": "playwright test"
   },
   "dependencies": {

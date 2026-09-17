@@ -25,6 +25,7 @@ import {
   resolveAuditStatus,
   AuditStatusBadge,
 } from '@/lib/audit-helpers';
+import { formatDisplayValue, formatExpectedCondition } from '@/lib/formatters';
 
 export default function AuditPage() {
   const { isAuthenticated, isDemoPreview } = useAuth();
@@ -429,9 +430,12 @@ function AuditMessagePreview({
     const status = String(payload.status || 'EVALUATED').toUpperCase();
     const isPass = status === 'PASS' || status === 'SATISFIED';
     const isFail = status === 'FAIL' || status === 'FAILED';
-    const op = String(payload.operator || '=');
-    const exp = String(payload.expected_value ?? '—');
-    const obs = String(payload.observed_value ?? '—');
+    const exp = formatExpectedCondition(payload.operator as string, payload.expected_value, {
+      unit: payload.unit as string,
+      requirementType: payload.requirement_type as string,
+      field: payload.field as string,
+    });
+    const obs = formatDisplayValue(payload.observed_value, { fallback: '—' });
 
     return (
       <div className="flex items-center justify-between gap-2.5 min-w-0">
@@ -455,8 +459,8 @@ function AuditMessagePreview({
               {status}
             </span>
           </div>
-          <div className="text-[11px] font-mono text-zinc-400 truncate" title={`Expected ${op} ${exp} • Observed ${obs}`}>
-            <span className="text-zinc-500">Expected:</span> {op} {exp}
+          <div className="text-[11px] font-mono text-zinc-400 truncate" title={`Expected ${exp} • Observed ${obs}`}>
+            <span className="text-zinc-500">Expected:</span> {exp}
             <span className="text-zinc-600 mx-1.5">•</span>
             <span className="text-zinc-500">Observed:</span>{' '}
             <span className={isFail ? 'text-rose-300 font-semibold' : 'text-zinc-300'}>{obs}</span>

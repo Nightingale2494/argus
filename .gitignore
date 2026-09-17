@@ -26,6 +26,7 @@ Thumbs.db
 coverage/
 dist/
 build/
+*.tsbuildinfo
 *.log
 *.db
 *.db-journal
