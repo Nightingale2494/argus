@@ -251,3 +251,69 @@ def test_successful_delete_unapproved_purged_jobs_preserved_audit_logged(monkeyp
         payload = audit_evt.payload_json
         assert payload.get("previous_failed_job_id") == "job_failed_extract_999"
         assert payload.get("filename") == "rfp.pdf"
+
+
+def test_deletion_preserves_unrelated_manual_requirements_with_null_document_id(monkeypatch):
+    with SessionLocal() as db:
+        tender = Tender(
+            id="t_del_null_doc",
+            tender_number="T-DEL-NULL-DOC",
+            title="Null Doc Tender",
+            status=JobStatus.FAILED,
+            raw_document_uri="tenders/t_del_null_doc/rfp.pdf",
+        )
+        doc = Document(
+            id="doc_to_delete",
+            tender_id="t_del_null_doc",
+            document_type=DocumentType.TENDER,
+            filename="rfp.pdf",
+            storage_uri="tenders/t_del_null_doc/rfp.pdf",
+            sha256="abc",
+        )
+        doc_req = TenderRequirement(
+            id="req_from_doc",
+            tender_id="t_del_null_doc",
+            clause="1.1",
+            requirement_type=RequirementType.TURNOVER,
+            field="financial.average_annual_turnover",
+            operator=OperatorEnum.GTE,
+            expected_value=1000000,
+            confidence=0.7,
+            is_approved=False,
+            document_id="doc_to_delete",
+        )
+        manual_req = TenderRequirement(
+            id="req_manual_unrelated",
+            tender_id="t_del_null_doc",
+            clause="2.0",
+            requirement_type=RequirementType.GST,
+            field="tax.gstin",
+            operator=OperatorEnum.EXISTS,
+            expected_value=True,
+            confidence=1.0,
+            is_approved=False,
+            document_id=None,
+        )
+        db.add_all([tender, doc, doc_req, manual_req])
+        db.commit()
+
+    from app.api.v1 import tenders as tenders_module
+    mock_provider = MagicMock()
+    mock_provider.delete_file.return_value = True
+    monkeypatch.setattr(tenders_module, "get_storage_provider", lambda: mock_provider)
+
+    headers = get_auth_headers(UserRole.PROCUREMENT_OFFICER)
+    with TestClient(app) as client:
+        resp = client.delete("/api/v1/tenders/t_del_null_doc/documents/doc_to_delete", headers=headers)
+        assert resp.status_code == 200
+
+    with SessionLocal() as db:
+        # Document record deleted
+        assert db.query(Document).filter(Document.id == "doc_to_delete").first() is None
+        # Document-linked requirement deleted
+        assert db.query(TenderRequirement).filter(TenderRequirement.id == "req_from_doc").first() is None
+        # Unrelated manual requirement with NULL document_id is preserved!
+        preserved_manual = db.query(TenderRequirement).filter(TenderRequirement.id == "req_manual_unrelated").first()
+        assert preserved_manual is not None
+        assert preserved_manual.document_id is None
+

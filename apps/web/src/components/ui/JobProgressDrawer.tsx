@@ -13,6 +13,7 @@ export interface JobProgressDrawerProps {
   events?: JobEventRead[];
   title?: string;
   onComplete?: () => void;
+  onFailed?: (error: string) => void;
 }
 
 const STAGES: { key: JobStage; label: string; weight: number }[] = [
@@ -46,19 +47,27 @@ export const JobProgressDrawer: React.FC<JobProgressDrawerProps> = ({
   events: propEvents,
   title = 'Autonomous Pipeline Execution',
   onComplete,
+  onFailed,
 }) => {
   const onCompleteRef = useRef(onComplete);
+  const onFailedRef = useRef(onFailed);
   useEffect(() => {
     onCompleteRef.current = onComplete;
+    onFailedRef.current = onFailed;
   });
 
   const handleCompleted = useCallback(() => {
     onCompleteRef.current?.();
   }, []);
 
+  const handleFailed = useCallback((err: string) => {
+    onFailedRef.current?.(err);
+  }, []);
+
   const stream = useJobStream({
     jobId: isOpen && jobId ? jobId : null,
     onCompleted: handleCompleted,
+    onFailed: handleFailed,
   });
 
   const job = propJob ?? stream.job;

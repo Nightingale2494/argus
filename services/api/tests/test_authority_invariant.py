@@ -378,6 +378,7 @@ def test_canonical_registry_parity():
         "experience.years",
         "legal.blacklisted",
         "document.expiry_date",
+        "gem.seller_id",
     }
 
     registered_keys = {f.key for f in CANONICAL_FIELDS}

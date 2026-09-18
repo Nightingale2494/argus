@@ -389,6 +389,7 @@ def test_all_demo_tenders_have_real_persisted_documents(monkeypatch):
                 },
             )
 
+        monkeypatch.setattr(settings, "ARGUS_INTELLIGENCE_EXTRACT_TENDER_URL", "http://intelligence.test/extract-tender")
         monkeypatch.setattr(httpx.AsyncClient, "post", mock_extract_tender_resp)
 
         for t_id in ["tender_gem_2026_02", "tender_gem_2026_03"]:

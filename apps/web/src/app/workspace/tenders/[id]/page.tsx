@@ -86,6 +86,7 @@ export default function TenderDetailPage() {
   const [showAddReq, setShowAddReq] = useState(false);
   const [showAddBidder, setShowAddBidder] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [latestJobFailed, setLatestJobFailed] = useState(false);
   const [extractingReqs, setExtractingReqs] = useState(false);
   const [tenderDocs, setTenderDocs] = useState<DocumentRead[]>([]);
   const [showDeleteDocModal, setShowDeleteDocModal] = useState(false);
@@ -197,6 +198,7 @@ export default function TenderDetailPage() {
   const handleExtractRequirements = async () => {
     if (!id) return;
     setExtractingReqs(true);
+    setLatestJobFailed(false);
     setError(null);
 
     try {
@@ -270,6 +272,11 @@ export default function TenderDetailPage() {
 
   const handleDeleteDocument = async () => {
     if (!id) return;
+    if (isCanonicalDemo) {
+      setError("Canonical demo documents cannot be deleted.");
+      setShowDeleteDocModal(false);
+      return;
+    }
     const docId = tender?.attached_file?.id || tenderDocs[0]?.id;
     if (!docId) {
       setError("Cannot find document ID to delete.");
@@ -281,6 +288,7 @@ export default function TenderDetailPage() {
     try {
       await api.deleteTenderDocument(id, docId);
       setShowDeleteDocModal(false);
+      setLatestJobFailed(false);
       setTender(prev => prev ? { ...prev, attached_file: undefined, raw_document_uri: undefined, status: "QUEUED" } : null);
       setTenderDocs([]);
       await loadTenderData({ silent: true });
@@ -447,7 +455,7 @@ export default function TenderDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {(tender.status === "FAILED" || !!error) && (
+            {(tender.status === "FAILED" || latestJobFailed) && (
               <div className="relative group">
                 <button
                   type="button"
@@ -778,6 +786,10 @@ export default function TenderDetailPage() {
             loadTenderData({ silent: true });
           }}
           onComplete={handleJobComplete}
+          onFailed={() => {
+            setLatestJobFailed(true);
+            handleJobComplete();
+          }}
         />
       )}
 

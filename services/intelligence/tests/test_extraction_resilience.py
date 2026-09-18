@@ -428,3 +428,91 @@ def test_extract_tender_success_returns_completed(monkeypatch):
     finally:
         if doc_path.exists():
             doc_path.unlink()
+
+
+def test_extract_tender_fallback_model_provenance_reported(monkeypatch):
+    monkeypatch.setenv("ARGUS_ALLOW_ANONYMOUS_INTELLIGENCE", "true")
+    monkeypatch.setenv("APP_ENV", "local")
+
+    mock_provider = MagicMock()
+    mock_provider.last_model_used = "gemini-3.1-flash-lite"
+    mock_provider.structured.return_value = {
+        "requirements": [
+            {
+                "clause": "3.1",
+                "requirement_type": "TURNOVER",
+                "field": "financial.average_annual_turnover",
+                "operator": "GTE",
+                "expected_value": 50000000,
+                "confidence": 0.90,
+                "mandatory": True,
+            }
+        ]
+    }
+    mock_gw = ModelGateway(mock_provider)
+    mock_gw.model_name = "gemini-3.6-flash"
+
+    from argus_ai import http_service
+    monkeypatch.setattr(http_service, "configured_gateway", lambda: mock_gw)
+
+    client = TestClient(create_app())
+    doc_path = _create_temp_doc("Clause 3.1 Minimum turnover 50000000.")
+    try:
+        import base64, hashlib
+        content_bytes = doc_path.read_bytes()
+        sha256 = hashlib.sha256(content_bytes).hexdigest()
+        b64 = base64.b64encode(content_bytes).decode("utf-8")
+
+        resp = client.post(
+            "/extract-tender",
+            json={
+                "contract_version": "1.0",
+                "request_id": "test-req-tender-fallback-001",
+                "tender_id": "tender_123",
+                "document_id": "doc_tender_123",
+                "filename": "tender.txt",
+                "document_sha256": sha256,
+                "file_bytes_base64": b64,
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "COMPLETED"
+        assert data["provider_model"] == "gemini-3.1-flash-lite"
+        assert data["requirements"][0]["metadata_json"]["provider_model"] == "gemini-3.1-flash-lite"
+    finally:
+        if doc_path.exists():
+            doc_path.unlink()
+
+
+def test_gemini_provider_fast_429_fallback_and_provenance(monkeypatch):
+    monkeypatch.setenv("ARGUS_GEMINI_API_KEY", "test-key")
+    monkeypatch.setenv("ARGUS_MODEL_NAME", "gemini-3.6-flash")
+
+    from argus_ai.model_gateway.gateway import GeminiProvider
+
+    mock_client = MagicMock()
+    call_models = []
+
+    def mock_generate_content(model, contents, config):
+        call_models.append(model)
+        if model == "gemini-3.6-flash":
+            err = Exception("429 RESOURCE_EXHAUSTED")
+            setattr(err, "code", 429)
+            raise err
+        resp = MagicMock()
+        resp.text = '{"answer": "fallback success", "cited_evidence_ids": []}'
+        return resp
+
+    mock_client.models.generate_content.side_effect = mock_generate_content
+
+    provider = GeminiProvider.__new__(GeminiProvider)
+    provider._client = mock_client
+    provider._model = "gemini-3.6-flash"
+    provider.last_model_used = "gemini-3.6-flash"
+
+    result = provider.structured("test prompt", {"type": "object"})
+    assert result == {"answer": "fallback success", "cited_evidence_ids": []}
+    assert provider.last_model_used == "gemini-3.1-flash-lite"
+    assert call_models.count("gemini-3.6-flash") == 1
+    assert call_models == ["gemini-3.6-flash", "gemini-3.1-flash-lite"]

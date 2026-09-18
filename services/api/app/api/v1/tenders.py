@@ -825,7 +825,7 @@ def delete_tender_document(
 
     reqs = db.query(TenderRequirement).filter(
         TenderRequirement.tender_id == tender_id,
-        (TenderRequirement.document_id == document_id) | (TenderRequirement.document_id.is_(None))
+        TenderRequirement.document_id == document_id,
     ).all()
 
     approved_reqs = [r for r in reqs if r.is_approved]

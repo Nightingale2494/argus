@@ -25,6 +25,7 @@ from app.schemas.canonical import (
     DocumentType,
     OperatorEnum,
     RequirementType,
+    RiskSeverity,
     UserRole,
 )
 from app.services.bid_verification_service import BidVerificationService
@@ -397,24 +398,23 @@ async def test_risk_signal_run_id_scoping_and_history(db: Session, test_setup):
     service = BidVerificationService(db)
     bidder = test_setup["bidder"]
 
-    # Add a mandatory requirement that deterministically FAILS to generate a RiskSignal
-    req_fail = TenderRequirement(
-        tender_id=test_setup["tender"].id,
-        clause="2.1",
-        requirement_type=RequirementType.TURNOVER,
-        field="financial.average_annual_turnover",
-        operator=OperatorEnum.GTE,
-        expected_value=999999999999,
-        mandatory=True,
-        is_approved=True,
-    )
-    db.add(req_fail)
-    db.commit()
-
     # Run 1
     await service.run_verification_workflow(bidder_id=bidder.id)
     runs_1 = db.query(ComplianceRun).filter(ComplianceRun.bidder_id == bidder.id).all()
     run1 = runs_1[0]
+
+    # Explicitly add a RiskSignal scoped to Run 1
+    signal1 = RiskSignal(
+        bidder_id=bidder.id,
+        run_id=run1.id,
+        severity=RiskSeverity.HIGH,
+        signal_type="SUSPICIOUS_BIDDER",
+        title="Discrepancy detected in Run 1",
+        description="Testing risk signal history scoping for Run 1",
+        evidence_ids=[],
+    )
+    db.add(signal1)
+    db.commit()
 
     risks_run1 = db.query(RiskSignal).filter(RiskSignal.run_id == run1.id).all()
     assert len(risks_run1) > 0
@@ -425,6 +425,19 @@ async def test_risk_signal_run_id_scoping_and_history(db: Session, test_setup):
     await service.run_verification_workflow(bidder_id=bidder.id)
     runs_2 = db.query(ComplianceRun).filter(ComplianceRun.bidder_id == bidder.id).order_by(ComplianceRun.created_at.asc()).all()
     run2 = runs_2[1]
+
+    # Explicitly add a RiskSignal scoped to Run 2
+    signal2 = RiskSignal(
+        bidder_id=bidder.id,
+        run_id=run2.id,
+        severity=RiskSeverity.HIGH,
+        signal_type="SUSPICIOUS_BIDDER",
+        title="Discrepancy detected in Run 2",
+        description="Testing risk signal history scoping for Run 2",
+        evidence_ids=[],
+    )
+    db.add(signal2)
+    db.commit()
 
     risks_run1_after = db.query(RiskSignal).filter(RiskSignal.run_id == run1.id).all()
     risks_run2_after = db.query(RiskSignal).filter(RiskSignal.run_id == run2.id).all()

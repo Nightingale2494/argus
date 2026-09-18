@@ -267,7 +267,8 @@ async def test_document_epfo_provider():
     assert res.verified_value["source_doc_id"] == "DOC-EPFO-ECR-2026"
 
 
-def test_health_integrations_endpoint():
+def test_health_integrations_endpoint(monkeypatch):
+    monkeypatch.setattr(settings, "GST_VERIFICATION_MODE", VerificationMode.DEMO)
     with TestClient(app) as client:
         resp = client.get("/health/integrations")
         assert resp.status_code == 200
@@ -283,9 +284,12 @@ def test_health_integrations_endpoint():
 
         # In test/development environments, GST/Udyam/MCA/Blacklist operate in DEMO mode
         # (synthetic deterministic providers). In production with live credentials they
-        # would be LIVE.  Assert the mode is a non-empty string and service is configured.
+        # would be LIVE. Assert based on intended test configuration.
         assert data["gst"]["mode"] in ("LIVE", "DEMO", "DEMO_SYNTHETIC", "PORTAL_CACHED")
-        assert data["gst"]["configured"] is True
+        if data["gst"]["mode"] == "LIVE":
+            assert data["gst"]["configured"] == bool(settings.GST_API_URL and settings.GST_API_KEY)
+        else:
+            assert data["gst"]["configured"] is True
 
         # EPFO and ESIC are document-extraction based in all environments
         assert data["epfo"]["mode"] in ("DOCUMENT", "DEMO", "CONFIGURED_UNVERIFIED")

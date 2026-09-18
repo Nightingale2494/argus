@@ -261,19 +261,21 @@ def create_app(rag: Optional[Any] = None, checkpointer: Optional[Any] = None) ->
             else:
                 raise HTTPException(422, "Either file_bytes_base64 or document_uri is required")
 
+            actual_model = gw.last_model_used or gw.model_name
             if payload.request_id or payload.contract_version:
                 return {
                     "contract_version": payload.contract_version or "1.0",
                     "request_id": payload.request_id or "",
-                    "document_id": payload.document_id or "",
+                    "tender_id": payload.tender_id,
+                    "document_id": payload.document_id,
                     "document_sha256": payload.document_sha256 or computed_sha or "",
                     "status": "COMPLETED",
                     "requirements": [
                         {
                             "clause": req.clause,
-                            "requirement_type": req.requirement_type.value if hasattr(req.requirement_type, "value") else str(req.requirement_type),
+                            "requirement_type": req.requirement_type,
                             "field": req.field,
-                            "operator": req.operator.value if hasattr(req.operator, "value") else str(req.operator),
+                            "operator": req.operator,
                             "expected_value": req.expected_value,
                             "unit": req.unit,
                             "mandatory": req.mandatory,
@@ -286,11 +288,12 @@ def create_app(rag: Optional[Any] = None, checkpointer: Optional[Any] = None) ->
                                 "source_page": req.source_page,
                                 "source_text": req.source_text,
                                 "confidence": req.confidence,
+                                "provider_model": actual_model,
                             },
                         }
                         for req in requirements
                     ],
-                    "provider_model": gw.model_name,
+                    "provider_model": actual_model,
                 }
             return TenderExtractionResponse(requirements=requirements)
         except ModelProviderUnavailableError as exc:
@@ -347,8 +350,9 @@ def create_app(rag: Optional[Any] = None, checkpointer: Optional[Any] = None) ->
             low_confidence_fields = [
                 fact.field for fact in facts if fact.confidence < _LOW_CONFIDENCE_THRESHOLD
             ]
-            review_required = bool(low_confidence_fields) or fallback_used
-            provider_model = "DETERMINISTIC_FALLBACK" if fallback_used else gw.model_name
+            review_required = fallback_used or bool(low_confidence_fields)
+            actual_model = gw.last_model_used or gw.model_name
+            provider_model = "DETERMINISTIC_FALLBACK" if fallback_used else actual_model
 
             if payload.request_id or payload.contract_version:
                 return {

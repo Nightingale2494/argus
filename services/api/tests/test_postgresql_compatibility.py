@@ -79,7 +79,7 @@ def test_alembic_postgresql_dialect_migration_check():
 
     # Confirm latest revision is idempotency and active operation locks addition
     head_rev = script_dir.get_current_head()
-    assert head_rev == "9f5627b30055"
+    assert head_rev == "a06738c40066"
 
 
 def _get_live_postgres_url():

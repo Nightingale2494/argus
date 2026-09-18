@@ -216,7 +216,13 @@ def extract_document(file_path: Union[str, Path], *, document_id: str, bidder_id
     if gateway and gateway.provider:
         try:
             output = gateway.extract_structured("Extract factual claims only. Do not decide eligibility, compliance, or qualification. Preserve source page/text. Return facts matching the schema.", text, DocumentExtractionResponse)
-            return [fact.model_copy(update={"document_id": document_id, "bidder_id": bidder_id}) for fact in output.facts]
+            actual_model = gateway.last_model_used or gateway.model_name
+            updates: dict[str, Any] = {"document_id": document_id, "bidder_id": bidder_id}
+            if actual_model and actual_model != "disabled":
+                updates["model"] = actual_model
+            if gateway.provider_name and gateway.provider_name != "disabled":
+                updates["provider"] = gateway.provider_name
+            return [fact.model_copy(update=updates) for fact in output.facts]
         except TransientProviderError as tpe:
             logger.warning("Upstream model provider transient failure: %s. Falling back to deterministic baseline.", tpe)
             facts = _extract_deterministic_facts(
