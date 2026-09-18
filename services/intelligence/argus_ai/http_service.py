@@ -6,7 +6,10 @@ from contextlib import asynccontextmanager
 from typing import Any, Optional
 
 import hmac
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -273,9 +276,9 @@ def create_app(rag: Optional[Any] = None, checkpointer: Optional[Any] = None) ->
                     "requirements": [
                         {
                             "clause": req.clause,
-                            "requirement_type": req.requirement_type,
+                            "requirement_type": req.requirement_type.value if hasattr(req.requirement_type, "value") else str(req.requirement_type),
                             "field": req.field,
-                            "operator": req.operator,
+                            "operator": req.operator.value if hasattr(req.operator, "value") else str(req.operator),
                             "expected_value": req.expected_value,
                             "unit": req.unit,
                             "mandatory": req.mandatory,
@@ -303,6 +306,11 @@ def create_app(rag: Optional[Any] = None, checkpointer: Optional[Any] = None) ->
             ) from exc
         except (ValueError, DocumentResolutionError, DocumentParseError) as exc:
             raise HTTPException(422, str(exc)) from exc
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.exception("Unexpected error in extract-tender: %s", exc)
+            raise HTTPException(500, detail={"error_code": "INTERNAL_SERVER_ERROR", "message": f"{type(exc).__name__}: {exc}"}) from exc
         finally:
             if temp_file and temp_file.exists():
                 try:
@@ -403,6 +411,11 @@ def create_app(rag: Optional[Any] = None, checkpointer: Optional[Any] = None) ->
             ) from exc
         except (ValueError, DocumentResolutionError, DocumentParseError) as exc:
             raise HTTPException(422, str(exc)) from exc
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.exception("Unexpected error in extract-document: %s", exc)
+            raise HTTPException(500, detail={"error_code": "INTERNAL_SERVER_ERROR", "message": f"{type(exc).__name__}: {exc}"}) from exc
         finally:
             if temp_file and temp_file.exists():
                 try:
