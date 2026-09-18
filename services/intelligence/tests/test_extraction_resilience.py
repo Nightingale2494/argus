@@ -334,3 +334,97 @@ def test_http_endpoint_zero_facts_returns_503(monkeypatch):
     finally:
         if doc_path.exists():
             doc_path.unlink()
+
+
+def test_extract_tender_model_provider_unavailable_returns_503(monkeypatch):
+    monkeypatch.setenv("ARGUS_ALLOW_ANONYMOUS_INTELLIGENCE", "true")
+    monkeypatch.setenv("APP_ENV", "local")
+
+    mock_provider = MagicMock()
+    mock_provider.structured.side_effect = ConnectionError("503 Service Unavailable")
+    mock_gw = ModelGateway(mock_provider)
+
+    from argus_ai import http_service
+    monkeypatch.setattr(http_service, "configured_gateway", lambda: mock_gw)
+
+    client = TestClient(create_app())
+    doc_path = _create_temp_doc("RFP Tender Document without deterministic patterns.")
+    try:
+        import base64, hashlib
+        content_bytes = doc_path.read_bytes()
+        sha256 = hashlib.sha256(content_bytes).hexdigest()
+        b64 = base64.b64encode(content_bytes).decode("utf-8")
+
+        resp = client.post(
+            "/extract-tender",
+            json={
+                "contract_version": "1.0",
+                "request_id": "test-req-tender-001",
+                "tender_id": "tender_123",
+                "document_id": "doc_tender_123",
+                "filename": "tender.txt",
+                "document_sha256": sha256,
+                "file_bytes_base64": b64,
+            },
+        )
+        assert resp.status_code == 503
+        detail = resp.json()["detail"]
+        assert detail.get("error_code") == "MODEL_PROVIDER_UNAVAILABLE"
+    finally:
+        if doc_path.exists():
+            doc_path.unlink()
+
+
+def test_extract_tender_success_returns_completed(monkeypatch):
+    monkeypatch.setenv("ARGUS_ALLOW_ANONYMOUS_INTELLIGENCE", "true")
+    monkeypatch.setenv("APP_ENV", "local")
+
+    from argus_ai.contracts import TenderRequirementDraft, RequirementType, Operator
+    mock_provider = MagicMock()
+    mock_provider.structured.return_value = {
+        "requirements": [
+            {
+                "clause": "2.1",
+                "requirement_type": "GST",
+                "field": "tax.gstin",
+                "operator": "EXISTS",
+                "expected_value": True,
+                "confidence": 0.95,
+                "mandatory": True,
+            }
+        ]
+    }
+    mock_gw = ModelGateway(mock_provider)
+
+    from argus_ai import http_service
+    monkeypatch.setattr(http_service, "configured_gateway", lambda: mock_gw)
+
+    client = TestClient(create_app())
+    doc_path = _create_temp_doc("Clause 2.1 GSTIN is mandatory.")
+    try:
+        import base64, hashlib
+        content_bytes = doc_path.read_bytes()
+        sha256 = hashlib.sha256(content_bytes).hexdigest()
+        b64 = base64.b64encode(content_bytes).decode("utf-8")
+
+        resp = client.post(
+            "/extract-tender",
+            json={
+                "contract_version": "1.0",
+                "request_id": "test-req-tender-002",
+                "tender_id": "tender_123",
+                "document_id": "doc_tender_123",
+                "filename": "tender.txt",
+                "document_sha256": sha256,
+                "file_bytes_base64": b64,
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "COMPLETED"
+        assert len(data["requirements"]) == 1
+        assert data["requirements"][0]["clause"] == "2.1"
+        assert data["requirements"][0]["field"] == "tax.gstin"
+    finally:
+        if doc_path.exists():
+            doc_path.unlink()

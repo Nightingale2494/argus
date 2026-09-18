@@ -293,7 +293,12 @@ def create_app(rag: Optional[Any] = None, checkpointer: Optional[Any] = None) ->
                     "provider_model": gw.model_name,
                 }
             return TenderExtractionResponse(requirements=requirements)
-        except (ValueError, DocumentResolutionError) as exc:
+        except ModelProviderUnavailableError as exc:
+            raise HTTPException(
+                503,
+                detail={"error_code": "MODEL_PROVIDER_UNAVAILABLE", "message": str(exc)},
+            ) from exc
+        except (ValueError, DocumentResolutionError, DocumentParseError) as exc:
             raise HTTPException(422, str(exc)) from exc
         finally:
             if temp_file and temp_file.exists():

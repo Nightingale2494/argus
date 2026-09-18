@@ -301,9 +301,13 @@ def extract_tender(file_path: Union[str, Path], gateway: ModelGateway = None) ->
     """Extract machine-readable eligibility requirements with exact clause and page provenance."""
     pages = parse_document(file_path)
     if gateway and gateway.provider:
-        content = "\n\n".join("PAGE %s:\n%s" % page for page in pages)
-        output = gateway.extract_structured("Extract machine-readable tender eligibility requirements only. Never decide bidder qualification or PASS/FAIL. If a clause is ambiguous, omit it rather than guessing.", content, TenderExtractionResponse)
-        return output.requirements
+        try:
+            content = "\n\n".join("PAGE %s:\n%s" % page for page in pages)
+            output = gateway.extract_structured("Extract machine-readable tender eligibility requirements only. Never decide bidder qualification or PASS/FAIL. If a clause is ambiguous, omit it rather than guessing.", content, TenderExtractionResponse)
+            return output.requirements
+        except TransientProviderError as tpe:
+            logger.warning("Upstream model provider transient failure during tender extraction: %s.", tpe)
+            raise ModelProviderUnavailableError(f"Model provider unavailable during tender extraction: {tpe}") from tpe
     requirements: list[TenderRequirementDraft] = []
     for page, text in pages:
         match = re.search(r"(?:minimum\s+)?(?:annual\s+)?turnover[^\n.]{0,100}?(?:INR|Rs\.?|₹)\s*([\d,]+)", text, re.I)

@@ -5,10 +5,11 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { 
   FileText, Sparkles, Plus, CheckCircle, AlertTriangle, Clock, 
-  ArrowLeft, RefreshCw, Users, AlertCircle, XCircle
+  ArrowLeft, RefreshCw, Users, AlertCircle, XCircle, Trash2, Upload
 } from "lucide-react";
 import { api } from "@/services/api";
 import { TenderRead, BidderRead, TenderRequirementRead } from "@/services/types";
+import { DocumentRead } from "@/types/api";
 import { RequirementAddModal } from "@/components/ui/RequirementAddModal";
 import { JobProgressDrawer } from "@/components/ui/JobProgressDrawer";
 import { SessionRequired } from "@/components/ui/SessionRequired";
@@ -18,10 +19,11 @@ import { formatExpectedCondition } from "@/lib/formatters";
 
 interface TenderWithFile extends TenderRead {
   attached_file?: {
+    id?: string;
     filename?: string;
-    size_bytes?: number;
-    content_type?: string;
-    uploaded_at?: number | string;
+    size_bytes?: number | null;
+    content_type?: string | null;
+    uploaded_at?: number | string | null;
   };
 }
 
@@ -55,10 +57,14 @@ function deduplicateRequirements(reqs: TenderRequirementRead[]): TenderRequireme
   return canonical;
 }
 
+const CANONICAL_DEMO_IDS = ["tender_gem_2026_01", "tender_gem_2026_02", "tender_gem_2026_03"];
+
 export default function TenderDetailPage() {
   const params = useParams();
   const id = params?.id as string;
   const { isAuthenticated, isDemoPreview } = useAuth();
+
+  const isCanonicalDemo = Boolean(isDemoPreview && CANONICAL_DEMO_IDS.includes(id));
 
   const [tender, setTender] = useState<TenderWithFile | null>(null);
   const [bidders, setBidders] = useState<BidderRead[]>([]);
@@ -81,6 +87,10 @@ export default function TenderDetailPage() {
   const [showAddBidder, setShowAddBidder] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [extractingReqs, setExtractingReqs] = useState(false);
+  const [tenderDocs, setTenderDocs] = useState<DocumentRead[]>([]);
+  const [showDeleteDocModal, setShowDeleteDocModal] = useState(false);
+  const [deletingDoc, setDeletingDoc] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
 
   // New Bidder Form State
   const [newBidderName, setNewBidderName] = useState("");
@@ -119,12 +129,43 @@ export default function TenderDetailPage() {
         }
       }
 
-      const [tData, bData, rData] = await Promise.all([
+      const [tData, bData, rData, dData] = await Promise.all([
         api.getTender(id),
         api.getBidders(id),
-        api.getRequirements(id)
+        api.getRequirements(id),
+        api.getTenderDocuments(id).catch(() => [] as DocumentRead[]),
       ]);
-      setTender(tData);
+      setTenderDocs(dData || []);
+      const firstDoc = dData && dData.length > 0 ? dData[0] : null;
+      const typedTData = tData as TenderWithFile;
+      const meta = (tData.metadata_json && typeof tData.metadata_json === "object")
+        ? (tData.metadata_json as Record<string, unknown>)
+        : null;
+      const metaAttached = (meta?.attached_file && typeof meta.attached_file === "object")
+        ? (meta.attached_file as Record<string, unknown>)
+        : null;
+
+      const attachedFile = typedTData.attached_file
+        ? { id: firstDoc?.id, ...typedTData.attached_file }
+        : firstDoc
+        ? {
+            id: firstDoc.id,
+            filename: firstDoc.filename,
+            size_bytes: firstDoc.size_bytes,
+            content_type: firstDoc.content_type,
+            uploaded_at: firstDoc.created_at,
+          }
+        : metaAttached
+        ? {
+            id: typeof meta?.document_id === "string" ? meta.document_id : undefined,
+            filename: typeof metaAttached.filename === "string" ? metaAttached.filename : undefined,
+            size_bytes: typeof metaAttached.size_bytes === "number" ? metaAttached.size_bytes : undefined,
+            content_type: typeof metaAttached.content_type === "string" ? metaAttached.content_type : undefined,
+            uploaded_at: typeof metaAttached.uploaded_at === "string" || typeof metaAttached.uploaded_at === "number" ? metaAttached.uploaded_at : undefined,
+          }
+        : undefined;
+
+      setTender({ ...tData, attached_file: attachedFile });
       setBidders(bData);
       setRequirements(deduplicateRequirements(rData));
       hasLoadedInitialTenderRef.current = true;
@@ -226,6 +267,46 @@ export default function TenderDetailPage() {
       loadTenderData({ silent: true });
     }
   }, [activeJobId, loadTenderData]);
+
+  const handleDeleteDocument = async () => {
+    if (!id) return;
+    const docId = tender?.attached_file?.id || tenderDocs[0]?.id;
+    if (!docId) {
+      setError("Cannot find document ID to delete.");
+      setShowDeleteDocModal(false);
+      return;
+    }
+    setDeletingDoc(true);
+    setError(null);
+    try {
+      await api.deleteTenderDocument(id, docId);
+      setShowDeleteDocModal(false);
+      setTender(prev => prev ? { ...prev, attached_file: undefined, raw_document_uri: undefined, status: "QUEUED" } : null);
+      setTenderDocs([]);
+      await loadTenderData({ silent: true });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to delete tender document.");
+      setShowDeleteDocModal(false);
+    } finally {
+      setDeletingDoc(false);
+    }
+  };
+
+  const handleUploadReplacementDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    setUploadingDoc(true);
+    setError(null);
+    try {
+      await api.uploadTenderDocument(id, file);
+      await loadTenderData({ silent: true });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to upload replacement document.");
+    } finally {
+      setUploadingDoc(false);
+      e.target.value = "";
+    }
+  };
 
   if (!mounted || (initialLoading && !tender)) {
     return (
@@ -346,24 +427,78 @@ export default function TenderDetailPage() {
         </div>
       </div>
 
-      {/* Attached RFP Document Banner */}
-      {tender?.attached_file && (
-        <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-4">
+      {/* Attached RFP Document Banner / Replacement Dropzone */}
+      {tender?.attached_file ? (
+        <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <FileText className="w-8 h-8 text-indigo-400 flex-shrink-0" />
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="text-sm font-semibold text-white font-mono">{tender.attached_file.filename}</h4>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-950 text-amber-300 border border-amber-800/60 font-bold">
-                  SYNTHETIC DEMO DATA
-                </span>
+                {isDemoPreview && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-950 text-amber-300 border border-amber-800/60 font-bold">
+                    SYNTHETIC DEMO DATA
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-400 font-mono mt-0.5">
                 {(((tender.attached_file.size_bytes ?? 0) / 1024 / 1024)).toFixed(2)} MB • {tender.attached_file.content_type} • Uploaded {new Date(tender.attached_file.uploaded_at ?? 0).toLocaleDateString()}
               </p>
             </div>
           </div>
-          <span className="text-xs text-indigo-400 font-mono font-medium">RFP Document Attached</span>
+          <div className="flex items-center gap-3">
+            {(tender.status === "FAILED" || !!error) && (
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteDocModal(true)}
+                  disabled={isCanonicalDemo}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors border ${
+                    isCanonicalDemo
+                      ? "bg-zinc-800/50 text-zinc-500 border-zinc-700/50 cursor-not-allowed"
+                      : "bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border-rose-500/30"
+                  }`}
+                  title={isCanonicalDemo ? "Canonical demo documents cannot be deleted." : "Delete failed document"}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Document
+                </button>
+                {isCanonicalDemo && (
+                  <div className="absolute right-0 bottom-full mb-1 hidden group-hover:block z-20 px-2 py-1 text-[11px] font-sans text-amber-300 bg-zinc-900 border border-zinc-700 rounded shadow-lg whitespace-nowrap">
+                    Canonical demo documents cannot be deleted.
+                  </div>
+                )}
+              </div>
+            )}
+            <span className="text-xs text-indigo-400 font-mono font-medium">RFP Document Attached</span>
+          </div>
+        </div>
+      ) : (
+        <div className="p-4 rounded-xl bg-zinc-900/60 border border-dashed border-zinc-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-400">
+              <Upload className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-zinc-300">No RFP Document Attached</h4>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Upload a replacement tender document (PDF) to extract clauses and requirements.
+              </p>
+            </div>
+          </div>
+          <div>
+            <label className={`inline-flex items-center gap-2 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors shadow-sm ${uploadingDoc ? "opacity-50 pointer-events-none" : ""}`}>
+              <Upload className="w-3.5 h-3.5" />
+              {uploadingDoc ? "Uploading..." : "Upload Replacement Document"}
+              <input
+                type="file"
+                accept=".pdf"
+                className="hidden"
+                disabled={uploadingDoc}
+                onChange={handleUploadReplacementDoc}
+              />
+            </label>
+          </div>
         </div>
       )}
 
@@ -644,6 +779,49 @@ export default function TenderDetailPage() {
           }}
           onComplete={handleJobComplete}
         />
+      )}
+
+      {/* Delete Failed Document Modal */}
+      {showDeleteDocModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex items-center gap-3 text-rose-400 mb-3">
+              <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <h3 className="text-lg font-semibold text-zinc-100">Delete failed tender document?</h3>
+            </div>
+            <p className="text-sm text-zinc-400 mb-6 leading-relaxed">
+              This removes the uploaded source document and any unapproved criteria extracted from it. Processing history and audit records will be preserved.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteDocModal(false)}
+                disabled={deletingDoc}
+                className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteDocument}
+                disabled={deletingDoc}
+                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {deletingDoc ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" /> Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" /> Delete Document
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -130,24 +130,30 @@ class GeminiProvider:
     def structured(self, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
         max_attempts = 3
         last_exc: Optional[Exception] = None
-        for attempt in range(1, max_attempts + 1):
-            try:
-                response = self._client.models.generate_content(
-                    model=self._model,
-                    contents=prompt,
-                    config={"response_mime_type": "application/json", "response_json_schema": schema}
-                )
-                import json
-                return json.loads(response.text)
-            except Exception as exc:
-                if is_transient_provider_error(exc):
-                    last_exc = exc
-                    if attempt < max_attempts:
-                        import time
-                        time.sleep(0.25 * attempt)
-                        continue
-                    raise TransientProviderError(f"Gemini provider transient failure after {max_attempts} attempts: {exc}") from exc
-                raise exc
+        models_to_try = [self._model]
+        for fallback in ("gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3.5-flash"):
+            if fallback not in models_to_try:
+                models_to_try.append(fallback)
+
+        for current_model in models_to_try:
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    response = self._client.models.generate_content(
+                        model=current_model,
+                        contents=prompt,
+                        config={"response_mime_type": "application/json", "response_json_schema": schema}
+                    )
+                    import json
+                    return json.loads(response.text)
+                except Exception as exc:
+                    if is_transient_provider_error(exc):
+                        last_exc = exc
+                        if attempt < max_attempts:
+                            import time
+                            time.sleep(0.25 * attempt)
+                            continue
+                        break
+                    raise exc
         if last_exc:
             raise TransientProviderError(f"Gemini provider transient failure: {last_exc}") from last_exc
 

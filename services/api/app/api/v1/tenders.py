@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 import hashlib
 import uuid
@@ -46,6 +47,7 @@ from app.services.document_service import DocumentService
 from app.services.rule_validator import RuleValidator
 from app.storage.factory import get_storage_provider
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tenders", tags=["Tenders"])
 ai_adapter = AIServiceAdapter()
 rag_adapter = RAGServiceAdapter()
@@ -765,6 +767,117 @@ def list_tender_documents(
 
     documents = db.query(Document).filter(Document.tender_id == tender_id).all()
     return documents
+
+
+@router.delete("/{tender_id}/documents/{document_id}")
+def delete_tender_document(
+    tender_id: str,
+    document_id: str,
+    principal: AuthenticatedPrincipal = Depends(
+        require_roles(UserRole.ADMIN, UserRole.PROCUREMENT_OFFICER)
+    ),
+    db: Session = Depends(get_db),
+):
+    """Safely delete a failed tender document and associated unapproved requirements."""
+    tender = db.query(Tender).filter(Tender.id == tender_id).first()
+    if not tender:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Tender with ID {tender_id} not found.",
+        )
+
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with ID {document_id} not found.",
+        )
+
+    if doc.tender_id != tender_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Document '{document_id}' does not belong to tender '{tender_id}'.",
+        )
+
+    if doc.bidder_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete bidder document '{document_id}' via tender document endpoint.",
+        )
+
+    latest_job = (
+        db.query(ProcessingJob)
+        .filter(
+            ProcessingJob.target_type == "TENDER",
+            ProcessingJob.target_id == tender_id,
+            ProcessingJob.job_type == "EXTRACT_REQUIREMENTS",
+        )
+        .order_by(ProcessingJob.started_at.desc())
+        .first()
+    )
+    failed_job_id = latest_job.id if latest_job and latest_job.status == JobStatus.FAILED else None
+    is_failed = (tender.status == JobStatus.FAILED) or (latest_job is not None and latest_job.status == JobStatus.FAILED)
+    if not is_failed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete document: document deletion is only permitted when tender processing or requirement extraction has failed.",
+        )
+
+    reqs = db.query(TenderRequirement).filter(
+        TenderRequirement.tender_id == tender_id,
+        (TenderRequirement.document_id == document_id) | (TenderRequirement.document_id.is_(None))
+    ).all()
+
+    approved_reqs = [r for r in reqs if r.is_approved]
+    if approved_reqs:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete document: approved tender requirements reference this source document. Deleting source evidence for approved requirements would destroy provenance.",
+        )
+
+    unapproved_reqs = [r for r in reqs if not r.is_approved]
+    for r in unapproved_reqs:
+        db.delete(r)
+
+    provider = get_storage_provider()
+    if doc.storage_uri:
+        try:
+            provider.delete_file(doc.storage_uri)
+        except Exception as exc:
+            logger.exception("Storage deletion failed for document %s: %s", document_id, exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete physical document from storage.",
+            )
+
+    doc_filename = doc.filename
+    db.delete(doc)
+
+    if tender.raw_document_uri == doc.storage_uri:
+        tender.raw_document_uri = None
+
+    tender.status = JobStatus.QUEUED
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    AuditLogger.create_entry(
+        db,
+        action="TENDER_DOCUMENT_DELETED",
+        entity_type="DOCUMENT",
+        entity_id=document_id,
+        principal=principal,
+        payload={
+            "tender_id": tender_id,
+            "document_id": document_id,
+            "filename": doc_filename,
+            "previous_failed_job_id": failed_job_id,
+            "timestamp": now_iso,
+            "target_url": f"/workspace/tenders/{tender_id}",
+            "message": f"Failed tender document '{doc_filename}' deleted and unapproved criteria purged.",
+        },
+    )
+    db.commit()
+
+    return {"success": True, "message": f"Document '{doc_filename}' deleted successfully."}
 
 
 def _safe_delete_tender(db: Session, tender: Tender, principal: AuthenticatedPrincipal) -> dict[str, Any]:

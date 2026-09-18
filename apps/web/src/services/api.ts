@@ -261,6 +261,13 @@ export const apiClient = {
     return this.uploadTenderDocument(tenderId, file, documentType);
   },
 
+  async deleteTenderDocument(tenderId: string, documentId: string): Promise<{ success: boolean; message?: string }> {
+    return request<{ success: boolean; message?: string }>(
+      `/api/v1/tenders/${encodeURIComponent(tenderId)}/documents/${encodeURIComponent(documentId)}`,
+      { method: 'DELETE' }
+    );
+  },
+
   // Bidders
   async getTenderBidders(tenderId: string): Promise<BidderRead[]> {
     return request<BidderRead[]>(`/api/v1/tenders/${encodeURIComponent(tenderId)}/bidders`);
