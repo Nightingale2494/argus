@@ -303,17 +303,7 @@ def _find_clause_for_pos(text: str, pos: int) -> str:
     clause_match = re.search(r"(?m)^\s*(\d+(?:\.\d+)*)\s*[).:-]", text)
     return clause_match.group(1) if clause_match else "UNNUMBERED"
 
-def extract_tender(file_path: Union[str, Path], gateway: ModelGateway = None) -> list[TenderRequirementDraft]:
-    """Extract machine-readable eligibility requirements with exact clause and page provenance."""
-    pages = parse_document(file_path)
-    if gateway and gateway.provider:
-        try:
-            content = "\n\n".join("PAGE %s:\n%s" % page for page in pages)
-            output = gateway.extract_structured("Extract machine-readable tender eligibility requirements only. Never decide bidder qualification or PASS/FAIL. If a clause is ambiguous, omit it rather than guessing.", content, TenderExtractionResponse)
-            return output.requirements
-        except TransientProviderError as tpe:
-            logger.warning("Upstream model provider transient failure during tender extraction: %s.", tpe)
-            raise ModelProviderUnavailableError(f"Model provider unavailable during tender extraction: {tpe}") from tpe
+def _extract_deterministic_requirements(pages: list[tuple[int, str]]) -> list[TenderRequirementDraft]:
     requirements: list[TenderRequirementDraft] = []
     for page, text in pages:
         match = re.search(r"(?:minimum\s+)?(?:annual\s+)?turnover[^\n.]{0,100}?(?:INR|Rs\.?|₹)\s*([\d,]+)", text, re.I)
@@ -348,6 +338,25 @@ def extract_tender(file_path: Union[str, Path], gateway: ModelGateway = None) ->
             seen.add(key)
             unique.append(r)
     return unique
+
+
+def extract_tender(file_path: Union[str, Path], gateway: ModelGateway = None) -> list[TenderRequirementDraft]:
+    """Extract machine-readable eligibility requirements with exact clause and page provenance."""
+    pages = parse_document(file_path)
+    if gateway and gateway.provider:
+        try:
+            content = "\n\n".join("PAGE %s:\n%s" % page for page in pages)
+            output = gateway.extract_structured("Extract machine-readable tender eligibility requirements only. Never decide bidder qualification or PASS/FAIL. If a clause is ambiguous, omit it rather than guessing.", content, TenderExtractionResponse)
+            return output.requirements
+        except (TransientProviderError, Exception) as tpe:
+            logger.warning("Upstream model provider failure during tender extraction: %s. Falling back to deterministic baseline.", tpe)
+            reqs = _extract_deterministic_requirements(pages)
+            if not reqs:
+                raise ModelProviderUnavailableError(f"Model provider unavailable during tender extraction: {tpe}") from tpe
+            if hasattr(gateway.provider, "last_model_used"):
+                gateway.provider.last_model_used = "DETERMINISTIC_FALLBACK"
+            return reqs
+    return _extract_deterministic_requirements(pages)
 
 def _sentence(text: str, start: int, end: int) -> str:
     """Small source excerpt for audit evidence; avoids returning a whole document page."""

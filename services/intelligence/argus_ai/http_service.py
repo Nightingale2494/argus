@@ -227,6 +227,11 @@ def create_app(rag: Optional[Any] = None, checkpointer: Optional[Any] = None) ->
         return {"status": "ok", "service": "argus-intelligence"}
 
 
+    @app.get("/version")
+    def version() -> dict[str, str]:
+        return {"status": "ok", "service": "argus-intelligence", "commit": "resilient-v3"}
+
+
     @app.get("/health")
     def health(_: None = Depends(require_auth)) -> dict[str, Any]:
         return readiness()
@@ -265,6 +270,7 @@ def create_app(rag: Optional[Any] = None, checkpointer: Optional[Any] = None) ->
                 raise HTTPException(422, "Either file_bytes_base64 or document_uri is required")
 
             actual_model = gw.last_model_used or gw.model_name
+            fallback_used = (actual_model == "DETERMINISTIC_FALLBACK")
             if payload.request_id or payload.contract_version:
                 return {
                     "contract_version": payload.contract_version or "1.0",
@@ -273,6 +279,7 @@ def create_app(rag: Optional[Any] = None, checkpointer: Optional[Any] = None) ->
                     "document_id": payload.document_id,
                     "document_sha256": payload.document_sha256 or computed_sha or "",
                     "status": "COMPLETED",
+                    "fallback_used": fallback_used,
                     "requirements": [
                         {
                             "clause": req.clause,
